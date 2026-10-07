@@ -98,5 +98,5 @@
 ### Caveats
 
 - GitHub Pages has no server rewrites → use a **hash router** (`/#/posts/123`).
-- Firebase web config is not secret, but keep it in `.env.local` + GitHub repo variables, not committed.
+- Firebase web config is not secret: committed in `.env.production` for builds; `.env.local` (gitignored) for local dev. No GitHub repository variables needed.
 - Add `<username>.github.io` to Firebase Auth **authorized domains** before testing the deployed site.
