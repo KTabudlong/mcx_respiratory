@@ -4,7 +4,7 @@ overview: A static React + TypeScript (Vite) site hosted on GitHub Pages. It use
 todos:
   - id: scaffold
     content: "Phase 0: scaffold Vite 8, React 19, TS 6.0, Tailwind 4, shadcn/ui and react-router 8 (hash router); copy the ESLint and Prettier setup and the adapted .cursor rules from ih_planner; add the Firebase init (real Spark project, no emulator yet) and the allowed email domains config (student.ccc.edu, ccc.edu); put a hello-world page live through GitHub Actions"
-    status: pending
+    status: completed
   - id: auth
     content: "Phase 1: AuthProvider, sign up, log in, email verification, password reset, school-domain check, user profile document and protected routes"
     status: pending

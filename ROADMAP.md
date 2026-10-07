@@ -28,17 +28,17 @@
 
 **Planning last reviewed:** 2026-10-07
 
-**Current milestone:** Phase 0 — scaffold + hello-world live on GitHub Pages.
+**Current milestone:** Phase 1 — auth (sign up, log in, verify email, protected routes).
 
-### Phase 0 — Setup (days 1–2)
+### Phase 0 — Setup (days 1–2) ✅ 2026-10-07
 
-- [ ] (User) Firebase project on Spark; Email/Password auth on; Firestore created; web app registered
-- [ ] (User) GitHub repo created; name shared with agent
-- [ ] Scaffold Vite 8 + React 19 + TS 6.0 + Tailwind 4 + shadcn/ui + react-router 8 (hash router)
-- [ ] Copy ESLint/Prettier config from `ih_planner`; npm scripts (`lint`, `format`, `types:check`, `test`)
-- [ ] `.cursor/rules/GENERAL.mdc` + adapted `imports-and-exports.mdc` / `responsive-design.mdc` + Tailwind skill
-- [ ] `src/lib/firebase.ts`, `src/lib/config.ts` (allowed domains), `.env.example`
-- [ ] GitHub Actions deploy workflow + Vite `base`; hello-world live
+- [x] (User) Firebase project on Spark; Email/Password auth on; Firestore created; web app registered
+- [x] (User) GitHub repo created (`KTabudlong/mcx_respiratory`)
+- [x] Scaffold Vite 8 + React 19 + TS 6.0 + Tailwind 4 + shadcn/ui + react-router 8 (hash router)
+- [x] Copy ESLint/Prettier config from `ih_planner`; npm scripts (`lint`, `format`, `types:check`, `test`)
+- [x] `.cursor/rules/GENERAL.mdc` + adapted `imports-and-exports.mdc` / `responsive-design.mdc` + Tailwind skill
+- [x] `src/lib/firebase.ts`, `src/lib/config.ts` (allowed domains), `.env.example`, `.env.production`
+- [x] GitHub Actions deploy workflow + Vite `base`; hello-world live
 
 ### Phase 1 — Auth (days 3–5)
 
@@ -74,11 +74,11 @@
 
 ## Blocked / waiting
 
-- **Firebase project + web config** — waiting on user (in class, no charger; will do later).
-- **GitHub repo name** — waiting on user.
+- Nothing blocking. (Optional user cleanup: delete unused environment variables under GitHub Settings → Environments → `github-pages`.)
 
 ---
 
 ## Internal changelog
 
 - **2026-10-07** — Project planned; plan, handoff, roadmap, and work log created.
+- **2026-10-07** — Phase 0 done: Firebase project set up, app scaffolded, hello-world live on GitHub Pages. Firebase config committed in `.env.production` instead of GitHub variables.

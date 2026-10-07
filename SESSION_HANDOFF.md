@@ -22,8 +22,8 @@
 2. **Read this file** top to bottom: **§ Permanent: start session** (this block), **§ Permanent: end session** (skim so you know the close-out contract), then **§ Continuity**.
 3. **Planning / todos:** Open **`ROADMAP.md`** — at least **§ Short-term checklist**, **Current milestone**, and **§ Blocked / waiting**. Adjust nothing unless the user already asked you to; just be aligned.
 4. **Build plan:** For implementation work, read the relevant sections of **`.cursor/plans/mxc_respi_announcements.plan.md`**.
-5. **Before coding:** Project rules first (**`.cursor/rules/GENERAL.mdc`** once it exists; created in Phase 0). These override the Laravel-focused global User rules for this repo (no Laravel here).
-6. **While coding:** Run **`npm run lint`**, **`npm run format`**, and **`npm run types:check`** after substantive TS/TSX edits (scripts added in Phase 0). Run **`npm run build`** before declaring a deploy-related change done.
+5. **Before coding:** Project rules first (**`.cursor/rules/GENERAL.mdc`**). These override the Laravel-focused global User rules for this repo (no Laravel here).
+6. **While coding:** Run **`npm run lint`**, **`npm run format`**, **`npm run types:check`**, and **`npm test`** after substantive TS/TSX edits. Run **`npm run build`** before declaring a deploy-related change done.
 
 ---
 
@@ -76,27 +76,25 @@
 
 ### Last session
 
-**2026-10-07 (session 1) — Planning only (no code)**
+**2026-10-07 (session 2) — Firebase setup + Phase 0 complete; hello-world live**
 
-- Chose stack: React + TS (Vite) on **GitHub Pages** + **Firebase Spark** (free, no card). Rejected Supabase (user picked Firebase).
-- Confirmed free-tier fit: Firestore 50k reads / 20k writes per day; Firebase Storage + Cloud Functions need Blaze → **not used**.
-- Decisions: sign-up limited to `student.ccc.edu` + `ccc.edu`; custom roles; members-only reading; light TypeScript; plain `useState` forms; plain-text posts first.
-- Reviewed `c:\laragon\www\ih_planner\.cursor` + frontend tooling → plan adopts its ESLint/Prettier/shadcn/folder conventions; Laravel-specific pieces not copied.
-- Pinned versions (TS 6.0.3 instead of 7.0 for `typescript-eslint` compatibility).
-- Java missing → emulator deferred to Phase 6; use Firebase console **Rules Playground** for manual rule checks until then.
-- Plan saved to **`.cursor/plans/mxc_respi_announcements.plan.md`**. Created this handoff, `ROADMAP.md`, `WORK_SESSIONS.md`.
-- **Not done yet:** no git repo, no scaffold, no `.cursor/rules` (Phase 0).
+- **Firebase** project `mcx-respiratory` on Spark ($0): Email/Password auth on, `ktabudlong.github.io` in authorized domains, public-facing name set, Firestore created in **production mode** (everything locked until Phase 2 rules). Google Analytics got enabled on the project — harmless, not used in the app.
+- **GitHub:** a stray `mcxrt.com` custom domain was removed (user doesn't own it; `CNAME` deleted). Pages source = **GitHub Actions**. Default branch switched to **`main`**; work on `dev`, user merges `dev` → `main` to deploy.
+- **Phase 0 scaffold** (hand-written, not `npm create vite`): Vite 8.3, React 19.3, TS 6.0.3, Tailwind 4.3, shadcn (`button`, `card`), react-router 8.4 hash router, Vitest 5, ESLint 9 + Prettier copied from `ih_planner`. `src/lib/firebase.ts` (throws a clear error if config is missing), `src/lib/config.ts` (`ALLOWED_EMAIL_DOMAINS` + `isAllowedEmail`, 4 tests), `pages/home.tsx` + `pages/not-found.tsx`. `.cursor/rules/` (GENERAL, imports, responsive) + Tailwind skill.
+- **Version decisions:** firebase stays **12.19** (13.0 just released); ESLint stays **9** (react/import plugins don't support 10). `npm audit` flags `@grpc/grpc-js` via Firebase — Node-only, not in the browser bundle; ignore (the "fix" downgrades to firebase 9).
+- **Config decision:** GitHub repo/environment variables didn't reach the build (they'd been put under the `github-pages` environment and one was missing). Switched to a committed **`.env.production`** (public identifiers) and removed the `vars.*` lines from the workflow. User should delete the leftover environment variables under Settings → Environments → `github-pages`.
+- **Live:** https://ktabudlong.github.io/mcx_respiratory/ shows the hello-world card connected to `mcx-respiratory`. CI runs lint/format/types/tests before building.
 
 ### Resume here
 
-1. **User to-dos (before Phase 0):**
-   - Create Firebase project on **Spark** (no card) → enable **Email/Password** sign-in → create **Firestore** database.
-   - Register a **web app** in that project and keep the config values handy (goes into `.env.local`; agent will provide a template).
-   - Create the **GitHub repo** and tell the agent its name (sets Vite `base` / Pages path).
-2. **Then Phase 0** (user says "go"): scaffold per plan, copy/adapt `.cursor` rules from `ih_planner`, Firebase init, hello-world deploy via GitHub Actions.
+1. (User, optional) Delete the 5 unused environment variables under GitHub **Settings → Environments → github-pages** (keep the environment itself).
+2. **Phase 1 — Auth:** `AuthProvider` (`src/context/auth-provider.tsx`), sign up / log in / log out / verify email / password reset pages, school-domain check via `isAllowedEmail`, `auth-layout.tsx`, protected routes. Creating the `users/{uid}` profile doc needs Firestore rules — either write a minimal `users` rule early or defer profile creation to Phase 2 (decide at start).
+3. Bundle is ~815 kB (Firestore SDK); fine for now — consider route-level code splitting later.
 
 ### Caveats
 
 - GitHub Pages has no server rewrites → use a **hash router** (`/#/posts/123`).
 - Firebase web config is not secret: committed in `.env.production` for builds; `.env.local` (gitignored) for local dev. No GitHub repository variables needed.
-- Add `<username>.github.io` to Firebase Auth **authorized domains** before testing the deployed site.
+- `ktabudlong.github.io` is already in Firebase Auth **authorized domains**; add any future custom domain there too (and change Vite `base` to `/`).
+- `npx shadcn add …` writes `import { cn } from "cn"` (TS 6 has no `baseUrl`) — fix to `@/lib/utils` after each add.
+- Laragon's `.test` URL won't work for this project; always use `npm run dev`.
