@@ -1,0 +1,52 @@
+---
+description: mcx_respiratory — stack, paths, and conventions (project-only)
+alwaysApply: true
+---
+
+# Project: MXC Respiratory Therapy class announcements
+
+## Stack (this repository)
+
+- **Frontend only:** React 19, **TypeScript 6.0** (not 7.x — `typescript-eslint` supports `<6.1`), Vite 8, Tailwind v4, shadcn/ui (`new-york`, `neutral`), react-router 8 (**hash router**), Vitest.
+- **Backend:** Firebase **Spark (free)** — Auth (email/password + email verification) and Firestore. No server code in this repo.
+- **Hosting:** GitHub Pages at `https://ktabudlong.github.io/mcx_respiratory/` via `.github/workflows/deploy.yml` (deploys on push to `main`; work happens on `dev`).
+- **Local:** Windows, inside Laragon's `www/` but **not served by Laragon** — use `npm run dev` (Vite). Java not installed until Phase 6, so no Firebase emulator yet; develop against the real Spark project.
+
+## Must stay free
+
+- No Blaze plan, no Cloud Functions, no Firebase Storage, no paid services. If a feature needs one, stop and propose a free alternative (see the build plan's "After launch" list).
+
+## Overrides of the Laravel-focused global User rules
+
+This repo has no Laravel, PHP, MySQL, or Inertia. Where global rules mention them:
+
+- **Routes** live in `src/router.tsx` (single source of truth). Use react-router's `<Link>` for in-app navigation.
+- **`firestore.rules` is the backend contract** — the equivalent of policies + Form Requests. Every permission check in the UI must also exist in the rules; never rely on UI checks alone.
+- **Data** comes from small Firestore hooks in `src/hooks/` (live `onSnapshot` listeners), not Inertia props or a data-fetching library.
+- **Validation:** small manual checks with plain `useState` forms; the rules re-validate on Firebase's side.
+- **Allowed sign-up domains** (`student.ccc.edu`, `ccc.edu`) are defined once in `src/lib/config.ts` and mirrored in `isMember()` in `firestore.rules` — change both together.
+
+## Paths and structure
+
+- `@/` → `src/` (from `tsconfig.json` `paths`; Vite reads it via `resolve.tsconfigPaths`).
+- `src/pages/` one default-exported file per route; `src/components/<area>/` app components; `src/components/ui/` shadcn (don't hand-edit except imports); `src/layouts/`, `src/hooks/`, `src/lib/`, `src/context/`, `src/types/index.ts`.
+- **Filenames:** kebab-case (`post-card.tsx`, `use-posts.ts`).
+- **Prop naming:** plural for collections (`posts`), singular for one item (`post`).
+- **shadcn CLI quirk:** `npx shadcn@latest add <component>` writes `import { cn } from "cn"` because TS 6 has no `baseUrl`. Change it to `@/lib/utils` after every add.
+
+## TypeScript (keep it light)
+
+- The user is strong in React/JS, newer to TS and Firestore. Type data shapes once in `src/types/index.ts`; rely on inference elsewhere. No advanced generics.
+- Explain Firestore concepts in MySQL terms when helpful.
+
+## Imports and UI helpers
+
+- Scoped rules **`imports-and-exports.mdc`** and **`responsive-design.mdc`** attach for files under `src/`.
+- Tailwind work: `.cursor/skills/tailwindcss-development/SKILL.md`.
+
+## Dev workflow
+
+- Session **start** ("read session handoff"): follow **`SESSION_HANDOFF.md` § Permanent: start session**. Session **end** ("update session handoff…"): follow **§ Permanent: end session**.
+- Build plan: **`.cursor/plans/mxc_respi_announcements.plan.md`**.
+- After substantive TS/TSX edits: `npm run lint`, `npm run format`, `npm run types:check`, `npm test`. Run `npm run build` before declaring deploy-related work done. CI runs the same checks (in `:check` mode) before deploying.
+- Firebase web config lives in `.env.local` (gitignored; template in `.env.example`) and in GitHub repository **variables** for CI. These values are public identifiers, not secrets.

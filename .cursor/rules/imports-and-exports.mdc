@@ -1,0 +1,46 @@
+---
+description: TS/TSX import paths, grouping, and export matching for src/
+globs:
+  - src/**/*.ts
+  - src/**/*.tsx
+alwaysApply: false
+---
+
+# Imports (project)
+
+Stack-wide defaults (default vs named exports, security, etc.) live in **global User rules**. This file adds **this repo's** paths and habits.
+
+## Paths and casing
+
+- Prefer: `@/components/...`, `@/layouts/...`, `@/pages/...`, `@/hooks/...`, `@/lib/...`.
+- Avoid legacy casing (`@/Components`, `@/Pages`). Fix wrong casing even when Windows accepts it.
+
+## Readability
+
+- Group imports: framework → third-party → local (`@/...`).
+- Remove unused imports.
+- Use `import type { ... }` for type-only imports in TypeScript.
+
+## Export shape → import syntax
+
+**Default export** — import without braces:
+
+```ts
+import MyComponent from '@/components/my-component';
+```
+
+**Named export** — import with braces:
+
+```ts
+import { MyComponent } from '@/components/my-component';
+```
+
+**Type-only:**
+
+```ts
+import type { Post } from '@/types';
+```
+
+## Troubleshooting
+
+If you see `does not provide an export named ...`, open the target file, confirm default vs named export, and match the import form.
