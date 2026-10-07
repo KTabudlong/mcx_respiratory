@@ -9,7 +9,8 @@ alwaysApply: true
 
 - **Frontend only:** React 19, **TypeScript 6.0** (not 7.x — `typescript-eslint` supports `<6.1`), Vite 8, Tailwind v4, shadcn/ui (`new-york`, `neutral`), react-router 8 (**hash router**), Vitest.
 - **Backend:** Firebase **Spark (free)** — Auth (email/password + email verification) and Firestore. No server code in this repo.
-- **Hosting:** GitHub Pages at `https://ktabudlong.github.io/mcx_respiratory/` via `.github/workflows/deploy.yml` (deploys on push to `main`; work happens on `dev`).
+- **Hosting:** GitHub Pages at `https://ktabudlong.github.io/mcx_respiratory/` via `.github/workflows/deploy.yml` (deploys on push to `main`).
+- **Branches:** `main` is the GitHub default branch and production; `dev` is for development/testing. The user commits, pushes, and merges `dev` → `main` at milestones — don't commit, push, or merge unless asked.
 - **Local:** Windows, inside Laragon's `www/` but **not served by Laragon** — use `npm run dev` (Vite). Java not installed until Phase 6, so no Firebase emulator yet; develop against the real Spark project.
 
 ## Must stay free
