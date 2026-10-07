@@ -1,0 +1,41 @@
+---
+description: Mobile-first Tailwind layout, breakpoints, and responsive a11y checks
+globs:
+  - src/**/*.tsx
+  - src/**/*.css
+alwaysApply: false
+---
+
+# Responsive design (Tailwind)
+
+## Principle
+
+Mobile-first utilities; add larger breakpoints only as layout needs them.
+
+## Breakpoints
+
+- `sm` 640+
+- `md` 768+
+- `lg` 1024+
+- `xl` 1280+
+- `2xl` 1536+
+
+## Layout
+
+- Prefer `grid` for 2D regions, `flex` for 1D alignment.
+- Avoid fixed widths unless necessary.
+- Tabular content: wrap in horizontal overflow when needed.
+- Vary spacing by breakpoint (`p-4 sm:p-6`, `gap-2 sm:gap-4`).
+
+## Interaction and accessibility
+
+- Touch targets large enough for fingers.
+- Interactive elements keyboard-accessible.
+- Contrast and type scale readable on small screens.
+
+## Quick checklist
+
+- Smoke-test mobile, tablet, and desktop widths.
+- No accidental horizontal scroll.
+- Dialogs/menus usable on touch.
+- Long labels and validation messages wrap cleanly.
