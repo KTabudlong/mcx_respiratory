@@ -220,7 +220,7 @@ This follows your `RULES_ARCHITECTURE.md`: a short project rule plus focused rul
 
 ## Deployment
 
-- Store the Firebase web config in GitHub repository variables. These values are not secrets, but this keeps them out of the code.
+- The Firebase web config is committed in `.env.production`, which the build reads. These values are not secrets (they ship to every browser), and this avoids any GitHub settings. Local dev uses a gitignored `.env.local`.
 - Add `<username>.github.io` to Firebase Auth's authorized domains.
 - Deploy the rules with `firebase deploy --only firestore:rules`, either by hand or from a second CI job.
 

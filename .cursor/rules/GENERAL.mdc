@@ -50,4 +50,4 @@ This repo has no Laravel, PHP, MySQL, or Inertia. Where global rules mention the
 - Session **start** ("read session handoff"): follow **`SESSION_HANDOFF.md` § Permanent: start session**. Session **end** ("update session handoff…"): follow **§ Permanent: end session**.
 - Build plan: **`.cursor/plans/mxc_respi_announcements.plan.md`**.
 - After substantive TS/TSX edits: `npm run lint`, `npm run format`, `npm run types:check`, `npm test`. Run `npm run build` before declaring deploy-related work done. CI runs the same checks (in `:check` mode) before deploying.
-- Firebase web config lives in `.env.local` (gitignored; template in `.env.example`) and in GitHub repository **variables** for CI. These values are public identifiers, not secrets.
+- Firebase web config: **`.env.production`** is committed and used by `npm run build` / CI (no GitHub variables). Local dev reads `.env.local` (gitignored; template in `.env.example`). These values are public identifiers, not secrets — protection comes from `firestore.rules` and Auth authorized domains. Never put real secrets in any `VITE_*` variable.
