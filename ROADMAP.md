@@ -20,15 +20,23 @@
 1. **Usable class board** — members-only posts + threaded comments, school-email sign-up, live on GitHub Pages.
 2. **Roles & moderation** — custom roles, admin role assignment, moderator tools, enforced by `firestore.rules`.
 3. **Stay free** — Firebase Spark + GitHub Pages only; no paid services.
-4. **After launch (free add-ons)** — image links / Cloudinary, `mailto:` BCC or EmailJS "email the class", unread badge, categories, due-date posts, PWA.
+4. **After launch (free add-ons)** — upvotes, image links / Cloudinary, `mailto:` BCC or EmailJS "email the class", Remind/GroupMe link for SMS, unread badge, categories, due-date posts, PWA.
 
 ---
 
 ## Short-term checklist
 
-**Planning last reviewed:** 2026-10-07
+**Planning last reviewed:** 2026-10-08
 
-**Current milestone:** Phase 1 — auth (sign up, log in, verify email, protected routes).
+**Current milestone:** Phase 1 — auth (sign up, log in, verify email, pending profile, protected routes).
+
+### Planning — data model + UI ✅ 2026-10-08
+
+- [x] Normalized data model mapped to Firestore (plan § Data model)
+- [x] Two-UI design: Reddit-style board + CRM-style admin panel, one SPA (plan § Two interfaces)
+- [x] `react-standards.mdc` rule (SOLID in React terms, SPA navigation)
+- [x] Firebase MCP configured (`.cursor/mcp.json`, auth + firestore only)
+- [x] (User) Enable Firebase MCP in Cursor Settings → MCP; sign in on first use
 
 ### Phase 0 — Setup (days 1–2) ✅ 2026-10-07
 
@@ -42,36 +50,42 @@
 
 ### Phase 1 — Auth (days 3–5)
 
-- [ ] Sign up / log in / log out / verify email / password reset
-- [ ] School-domain check (`student.ccc.edu`, `ccc.edu`)
-- [ ] User profile doc on first login (pending: no classes/roles yet) + `/pending` screen; `AuthProvider` + protected routes
+- [x] (User) Firebase sign-in for deploying rules (Firebase MCP, `laotabudlong@gmail.com`)
+- [x] `firebase.json` + minimal `firestore.rules` (own pending `users` + `userContacts` doc only), deployed 2026-10-08
+- [x] `AuthProvider`, `auth-layout`, log in / log out / forgot password
+- [x] Stepper sign-up: account (school-domain check) → verify email → profile (first/last name, optional contact + SMS opt-in) → done; step derived from account state
+- [x] `/pending` screen + protected routes (`RequireAuth`, `GuestOnly`)
+- [x] (User) Manual test with a real `@student.ccc.edu` address: verification email arrives, profile saves, `/pending` shows (2026-10-08, `ktabudlong@student.ccc.edu`)
 
-### Phase 2 — Rules + roles foundation (days 6–7)
+### Phase 2 — Rules, roles + users admin (days 6–10)
 
 - [x] Data model decided (2026-10-08): classes, roles, users (`classIds`/`roleIds` arrays), `userContacts`, posts (embedded links), threaded comments; soft deletes + timestamps — see plan § Data model
-- [ ] `firestore.rules` (`isMember`, `can()`, class-scoped reads), deploy with firebase-tools
+- [ ] Full `firestore.rules` (`isMember`, `isActive`, `can()`, class-scoped reads, no privilege escalation), deployed
 - [ ] Seed Admin / Moderator / Student; first-admin setup steps
+- [ ] Lazy-loaded `admin-layout` shell (sidebar, breadcrumbs)
+- [ ] Classes table (create / edit / archive)
+- [ ] Users table: search by first/last name; add user (second Firebase app instance + set-password email); edit; approve pending; assign classes/roles; soft delete / restore (`users.view` / `users.manage`)
 - [ ] Manual checks in Rules Playground
 
-### Phase 3 — Posts (days 8–11)
+### Phase 3 — Posts (days 11–14)
 
 - [ ] Reddit-style `board-layout` (top bar, class switcher, right sidebar)
 - [ ] Feed (pinned first, paging 20), create / edit / delete / pin
 - [ ] Loading, empty, error states
 
-### Phase 4 — Threaded comments (days 12–15)
+### Phase 4 — Threaded comments (days 15–18)
 
 - [ ] Comment / reply / edit / soft delete; moderator delete; depth limit; counts
 
-### Phase 5 — CRM admin panel (days 16–21)
+### Phase 5 — Rest of the CRM admin panel (days 19–22)
 
-- [ ] Lazy-loaded `admin-layout` (sidebar, breadcrumbs) + dashboard stat cards
-- [ ] Shared data table (`@tanstack/react-table`): search, filters, sort, paging, row selection, bulk actions
-- [ ] Users table + detail: approve pending, assign classes/roles, soft delete/restore, "email selected"
-- [ ] Classes table + detail (create / edit / archive); roles table + permission editor + permissions recalculation
+- [ ] Dashboard stat cards
+- [ ] Data table upgrade: filters, sort, column visibility, row selection, bulk actions (incl. "email selected")
+- [ ] User detail tabs (profile, contact, classes/roles, activity); class detail with members
+- [ ] Roles table + permission editor + permissions recalculation
 - [ ] Posts / comments moderation tables (incl. restore)
 
-### Phase 6 — Polish + launch (days 22–24)
+### Phase 6 — Polish + launch (days 23–25)
 
 - [ ] Install Java 21 (winget); emulator + automated rules tests
 - [ ] Mobile + accessibility pass; invite the class
@@ -88,3 +102,4 @@
 
 - **2026-10-07** — Project planned; plan, handoff, roadmap, and work log created.
 - **2026-10-07** — Phase 0 done: Firebase project set up, app scaffolded, hello-world live on GitHub Pages. Firebase config committed in `.env.production` instead of GitHub variables.
+- **2026-10-08** — Planning milestone: data model (multi-class, pending users, roles master table, private contacts, embedded links, soft deletes), Reddit board + CRM admin design, React standards rule, Firebase MCP. Upvotes moved to after launch. Stepper sign-up; admin-created accounts (second app instance + set-password email); `users.view`/`users.manage`; users table moved to Phase 2 (launch ~4–5 weeks).

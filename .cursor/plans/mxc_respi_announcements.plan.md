@@ -6,10 +6,10 @@ todos:
     content: "Phase 0: scaffold Vite 8, React 19, TS 6.0, Tailwind 4, shadcn/ui and react-router 8 (hash router); copy the ESLint and Prettier setup and the adapted .cursor rules from ih_planner; add the Firebase init (real Spark project, no emulator yet) and the allowed email domains config (student.ccc.edu, ccc.edu); put a hello-world page live through GitHub Actions"
     status: completed
   - id: auth
-    content: "Phase 1: AuthProvider, sign up, log in, email verification, password reset, school-domain check, user profile document and protected routes"
+    content: "Phase 1: AuthProvider, stepper sign-up (account, verify email, profile, done), log in, password reset, school-domain check, firebase.json + minimal users rules, pending profile document and protected routes"
     status: pending
   - id: rules
-    content: "Phase 2: firestore.rules (isMember, can()), seed the Admin, Moderator and Student roles, and write the first-admin setup steps"
+    content: "Phase 2: full firestore.rules (isMember, isActive, can()), seed roles, first-admin steps; admin shell (lazy-loaded) with classes CRUD and users table (search by first/last name, admin-created accounts, edit, soft delete/restore, approve pending)"
     status: pending
   - id: posts
     content: "Phase 3: post CRUD, feed with pinned posts first and paging, and loading, empty and error states"
@@ -18,7 +18,7 @@ todos:
     content: "Phase 4: threaded comments with reply, edit, soft delete, moderation, depth limit and comment counts"
     status: pending
   - id: roles-admin
-    content: "Phase 5: admin users list with role assignment, custom role editor and stored-permissions recalculation"
+    content: "Phase 5: rest of the CRM admin panel: dashboard, shared data table with filters and bulk actions, user detail tabs, roles editor with permissions recalculation, posts/comments moderation"
     status: pending
   - id: polish
     content: "Phase 6: install Java 21 (Temurin via winget), add the Firebase emulator and automated rules tests, do a mobile and accessibility pass, then launch to the class"
@@ -128,6 +128,25 @@ function isMember() {
 
 - Optional later: add a "Sign in with Microsoft" button, since City Colleges of Chicago uses Microsoft 365.
 
+### Account creation — decided 2026-10-08
+
+Two ways an account gets created; both end in the same stepper.
+
+- **Self sign-up (stepper at `/signup`):**
+  1. **Account:** school email + password (domain check via `isAllowedEmail`).
+  2. **Verify email:** send the link; "I've verified" button reloads the user; "Resend" button.
+  3. **Profile:** first name, last name, contact number (E.164) + SMS opt-in. Creates `users/{uid}` (pending) and `userContacts/{uid}`.
+  4. **Done:** pending users go to `/pending`; users who already have a class go to the board.
+  - The current step is **derived from account state**, not stored: signed in but unverified → step 2; verified with no profile (or no name) → step 3. Closing the tab and logging in later resumes at the right step.
+- **Admin-created (users table, `users.manage`):**
+  - The admin enters first/last name, school email, classes and roles. The user is approved immediately.
+  - The browser can't create someone else's login with the normal client SDK (that needs the Admin SDK on a server = Blaze). Free workaround: a **second Firebase app instance** (`initializeApp(config, 'admin-create')`) calls `createUserWithEmailAndPassword` so the admin stays signed in on the main instance, then signs out of the second instance.
+  - The temporary password is random (`crypto.getRandomValues`), never shown or stored. The admin then calls `sendPasswordResetEmail`, so Firebase emails the student a **"set your password" link** — free, from Firebase's own mailer.
+  - The admin writes `users/{newUid}` with classes, roles and permissions.
+  - The student sets a password, logs in, verifies their email (step 2) and confirms their profile and contact number (step 3), then lands on the board.
+  - `auth/email-already-in-use` shows a clear error ("this person already has an account — find them in the table").
+- **Deleting a user** is a soft delete (`deletedAt`). The client can't delete or disable someone else's Auth login without the Admin SDK; rules block soft-deleted users from everything (`isActive()`). If ever needed, the login can be disabled by hand in the Firebase console (or the Firebase MCP's `auth_update_user`).
+
 ## Data model (Firestore) — decided 2026-10-08
 
 Designed normalized first (MySQL-style ERD), then mapped to Firestore. Field names are camelCase so documents map straight onto the TS types.
@@ -144,10 +163,10 @@ Designed normalized first (MySQL-style ERD), then mapped to Firestore. Field nam
   - A class is archived instead of deleted.
 - `roles/{roleId}` (master/reference table, no enums): `{ name, color, permissions: string[], createdAt, updatedAt }`
   - `roleId` is a slug: `admin`, `moderator`, `student` (seeded; admins can add more, e.g. `instructor`).
-  - Permissions are named constants in code (`src/lib/permissions.ts`), because each one only works once the code and `firestore.rules` check it: `posts.create`, `posts.edit_any`, `posts.delete_any`, `posts.pin`, `comments.delete_any`, `users.manage`, `roles.manage`, `classes.manage`.
+  - Permissions are named constants in code (`src/lib/permissions.ts`), because each one only works once the code and `firestore.rules` check it: `posts.create`, `posts.edit_any`, `posts.delete_any`, `posts.pin`, `comments.delete_any`, `users.view` (see the users table and contact numbers), `users.manage` (create, edit, soft delete/restore, approve, assign classes and roles), `roles.manage`, `classes.manage`.
 - `users/{uid}`: `{ firstName, lastName, email, classIds: string[], roleIds: string[], permissions: string[], createdAt, updatedAt, deletedAt }`
   - **Many-to-many as arrays** (Firestore's pivot table for small sets): a user can be in many classes (instructors) and hold many roles.
-  - **New users are "pending":** they sign up with `classIds: []`, `roleIds: []`, `permissions: []` and see a waiting screen until someone with `users.manage` assigns a class and roles.
+  - **Self-signed-up users are "pending":** they sign up with `classIds: []`, `roleIds: []`, `permissions: []` and see a waiting screen until someone with `users.manage` assigns a class and roles. Admin-created users start approved (see § Account creation).
   - `roleIds` is the source of truth. `permissions` is a derived copy of the combined permissions of the user's roles, because security rules can't loop over roles. Whenever an admin changes a role or a user's roles, the admin screen recalculates `permissions` for the affected users in one batched write. This is the one deliberate denormalization.
   - Email must be `@student.ccc.edu` or `@ccc.edu` (copied from Auth; rules check it matches the token).
 - `userContacts/{uid}`: `{ phone, smsOptIn, smsOptInAt | null, updatedAt }`
@@ -168,12 +187,15 @@ Designed normalized first (MySQL-style ERD), then mapped to Firestore. Field nam
 ## Authorization rules (summary for [firestore.rules](firestore.rules))
 
 - Every read requires `isMember()`, so nothing is public.
+- `isActive()` = `isMember()` + own `users` doc exists with `deletedAt == null`. Everything beyond reading/creating your own profile requires it, so soft-deleted users are locked out.
 - Class content (posts, comments) is only readable by users whose `classIds` contain the post's `classId`. Pending users (no classes) can only read their own profile.
 - `users/{uid}`:
-  - On create, users can only create their own document, with empty `classIds`, `roleIds` and `permissions`, and `deletedAt: null`.
-  - On update, users can only change `firstName` and `lastName`.
-  - Anyone with `users.manage` can change `classIds`, `roleIds` and `permissions`.
-- `userContacts/{uid}`: read/write by the owner; read by `users.manage`.
+  - Self-create: only your own document, with empty `classIds`, `roleIds` and `permissions`, and `deletedAt: null`.
+  - Self-update: only `firstName` and `lastName`.
+  - Active members with at least one class can read other users' docs (names for the client-side join); `users.view` can read all, including pending and soft-deleted.
+  - `users.manage` can create any user's doc (admin-created accounts), change `classIds`, `roleIds` and `permissions`, and soft delete / restore.
+  - **No privilege escalation:** a `users.manage` holder can only grant permissions they hold themselves (`request.resource.data.permissions.hasOnly(perms())`).
+- `userContacts/{uid}`: read/write by the owner; read by `users.view`; written by `users.manage`.
 - `classes`: readable by members; only `classes.manage` can write.
 - `roles`: only `roles.manage` can write.
 - `posts`:
@@ -214,7 +236,7 @@ Both use the same hooks, types, `AuthProvider` and `firestore.rules`; only the l
 ### Admin panel (CRM-style)
 
 - **Shell:** collapsible left sidebar (shadcn `sidebar`), top bar with breadcrumbs and user menu, "Back to board" link. On mobile the sidebar becomes a drawer.
-- **Access:** visible to users with at least one admin permission (`users.manage`, `roles.manage`, `classes.manage`, `posts.delete_any`, `comments.delete_any`); each section is gated by its own permission, in the UI **and** in `firestore.rules`.
+- **Access:** visible to users with at least one admin permission (`users.view`, `users.manage`, `roles.manage`, `classes.manage`, `posts.delete_any`, `comments.delete_any`); each section is gated by its own permission, in the UI **and** in `firestore.rules`.
 - **Data tables** (shadcn data-table pattern on `@tanstack/react-table`): search, filters (class, role, status: active / pending / deleted), sortable columns, pagination, column visibility, row selection with **bulk actions**.
   - Filtering and search run in memory: at class scale the admin loads the whole collection (a few hundred documents). Firestore has no `LIKE`/full-text search; if this ever grows past that, add lowercase prefix-search fields first.
 - **Record detail pages:** tabs for profile, contact info, classes and roles, and activity (that user's posts and comments).
@@ -222,14 +244,14 @@ Both use the same hooks, types, `AuthProvider` and `firestore.rules`; only the l
 | Route | Purpose |
 | --- | --- |
 | `/admin` | Dashboard: pending users count, members per class, posts this week (`count()` aggregations) |
-| `/admin/users`, `/admin/users/:uid` | Users table + detail; approve pending users; bulk assign class/role; bulk "email selected" (`mailto:` BCC); soft delete / restore |
+| `/admin/users`, `/admin/users/:uid` | Users table (`users.view`) with search by first or last name + detail; add user (admin-created account), edit, approve pending, soft delete / restore (`users.manage`); bulk assign class/role; bulk "email selected" (`mailto:` BCC) |
 | `/admin/classes`, `/admin/classes/:id` | Classes table + detail with its members; create, edit, archive |
 | `/admin/roles` | Roles table; create/edit roles with permission checkboxes (recalculates users' `permissions`) |
 | `/admin/posts`, `/admin/comments` | Moderation tables including soft-deleted items; restore or delete |
 
 ### Other routes
 
-- `/login`, `/signup`, `/verify-email`, `/forgot-password` use `auth-layout.tsx` and are open to anyone.
+- `/login`, `/signup` (the stepper; also hosts the verify-email and profile steps) and `/forgot-password` use `auth-layout.tsx` and are open to anyone.
 - `/pending` is shown to signed-in users with no class yet ("waiting for an admin to add you to a class").
 - `/posts/new` and `/posts/:id/edit` require the `posts.create` permission or post ownership.
 - `/profile` lets users change their name and contact number (with SMS opt-in).
@@ -297,38 +319,40 @@ The estimates assume part-time work of about 1 to 2 hours a day. I write most of
   - Scaffold Vite, React, TypeScript, Tailwind and the router.
   - Add the GitHub Actions workflow and put a "hello world" page live on Pages.
 - **Phase 1, authentication (days 3-5):**
-  - Sign up, log in, log out, email verification and password reset.
+  - Stepper sign-up (account → verify email → profile → done), log in, log out, password reset.
   - School-domain check.
-  - Create the user profile document on first login.
-  - Protected routes.
-- **Phase 2, rules and roles foundation (days 6-7):**
-  - Write `firestore.rules`.
+  - `firebase.json` + minimal `firestore.rules` for `users` and `userContacts` (own pending doc only), deployed with `firebase-tools`.
+  - `/pending` screen and protected routes.
+- **Phase 2, rules, roles and users admin (days 6-10):**
+  - Full `firestore.rules` (`isMember`, `isActive`, `can()`, no privilege escalation).
   - Seed the Admin, Moderator and Student roles and make yourself admin.
-  - Do quick manual rule checks in the Firebase console's **Rules Playground**, which runs in the browser and needs no Java.
-- **Phase 3, posts (days 8-11):**
+  - Lazy-loaded `admin-layout` shell (sidebar, breadcrumbs).
+  - Classes table (create / edit / archive) — needed before users can be assigned.
+  - Users table with search by first or last name: add user (admin-created account + set-password email), edit, approve pending, assign classes and roles, soft delete / restore.
+  - Quick manual rule checks in the Firebase console's **Rules Playground** (no Java needed).
+- **Phase 3, posts (days 11-14):**
   - Reddit-style `board-layout` (top bar, class switcher, right sidebar).
   - Feed with pinned posts first and "load more" paging of 20 posts.
   - Create, edit and delete posts, and pin or unpin.
   - Each page handles loading, empty and error states.
-- **Phase 4, threaded comments (days 12-15):**
+- **Phase 4, threaded comments (days 15-18):**
   - Comment, reply, edit and soft delete.
   - Moderator deletion.
   - Nested display with a depth limit, for example 5 levels.
   - Comment counts.
-- **Phase 5, CRM admin panel (days 16-21):**
-  - Lazy-loaded `admin-layout` with sidebar, breadcrumbs and dashboard stat cards.
-  - Shared data-table component (search, filters, sorting, paging, row selection, bulk actions).
-  - Users table + detail page (approve pending users, assign classes and roles, soft delete / restore, "email selected").
-  - Classes table + detail; roles table with permission checkboxes and permissions recalculation.
+- **Phase 5, rest of the CRM admin panel (days 19-22):**
+  - Dashboard stat cards.
+  - Shared data-table component upgrade (filters, sorting, column visibility, row selection, bulk actions incl. "email selected").
+  - User detail tabs (profile, contact, classes and roles, activity); class detail with members.
+  - Roles table with permission checkboxes and permissions recalculation.
   - Posts and comments moderation tables, including restore.
-  - Until this phase, pending users are approved by hand in the Firebase console (or through the Firebase MCP, with your OK).
-- **Phase 6, polish and launch (days 22-24):**
+- **Phase 6, polish and launch (days 23-25):**
   - Install Java 21 with winget.
   - Add the emulator and automated rules tests.
   - Mobile layout check and accessibility pass.
   - Invite the class.
 
-That's about 4 weeks part-time for a version the class can use. Phases 0 to 3 alone, about 2 weeks, already give a usable announcement board.
+That's about 4 to 5 weeks part-time for a version the class can use. Phases 0 to 3, about 3 weeks, already give a usable announcement board with user management.
 
 ## After launch (all free)
 

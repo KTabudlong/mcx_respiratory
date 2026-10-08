@@ -1,0 +1,75 @@
+rules_version = '2';
+
+// Phase 1 (minimal): users can create and read their own pending profile and
+// private contact document. Everything else stays locked until Phase 2.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    // Keep the domain list in sync with ALLOWED_EMAIL_DOMAINS in src/lib/config.ts.
+    function isMember() {
+      return signedIn()
+        && request.auth.token.email_verified == true
+        && request.auth.token.email.lower().matches('^[^@]+@(student[.])?ccc[.]edu$');
+    }
+
+    function isValidName(name) {
+      return name is string && name.trim().size() > 0 && name.size() <= 50;
+    }
+
+    match /users/{uid} {
+      allow read: if isOwner(uid);
+
+      allow create: if isMember()
+        && isOwner(uid)
+        && request.resource.data.keys().hasOnly([
+          'firstName', 'lastName', 'email', 'classIds', 'roleIds',
+          'permissions', 'createdAt', 'updatedAt', 'deletedAt'
+        ])
+        && isValidName(request.resource.data.firstName)
+        && isValidName(request.resource.data.lastName)
+        && request.resource.data.email == request.auth.token.email.lower()
+        && request.resource.data.classIds == []
+        && request.resource.data.roleIds == []
+        && request.resource.data.permissions == []
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time
+        && request.resource.data.deletedAt == null;
+
+      allow update: if isMember()
+        && isOwner(uid)
+        && resource.data.deletedAt == null
+        && request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['firstName', 'lastName', 'updatedAt'])
+        && isValidName(request.resource.data.firstName)
+        && isValidName(request.resource.data.lastName)
+        && request.resource.data.updatedAt == request.time;
+    }
+
+    match /userContacts/{uid} {
+      allow read: if isOwner(uid);
+
+      allow create, update: if isMember()
+        && isOwner(uid)
+        && request.resource.data.keys().hasOnly(['phone', 'smsOptIn', 'smsOptInAt', 'updatedAt'])
+        && request.resource.data.keys().hasAll(['phone', 'smsOptIn', 'smsOptInAt', 'updatedAt'])
+        && request.resource.data.phone is string
+        && (request.resource.data.phone == ''
+          || request.resource.data.phone.matches('^[+][1-9][0-9]{7,14}$'))
+        && request.resource.data.smsOptIn is bool
+        && ((request.resource.data.smsOptIn == true
+            && request.resource.data.phone != ''
+            && request.resource.data.smsOptInAt is timestamp)
+          || (request.resource.data.smsOptIn == false
+            && request.resource.data.smsOptInAt == null))
+        && request.resource.data.updatedAt == request.time;
+    }
+  }
+}

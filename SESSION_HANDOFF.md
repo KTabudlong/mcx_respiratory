@@ -35,8 +35,11 @@
 - **Frontend only**, hosted free on **GitHub Pages**. Backend = **Firebase Spark (free) plan**: Auth (email/password + email verification) + Firestore.
 - **Must stay free:** no Blaze plan, no Cloud Functions, no Firebase Storage. No credit card on the Firebase project.
 - **Sign-up restricted** to `@student.ccc.edu` (students) and `@ccc.edu` (instructors), case-insensitive, enforced in UI **and** `firestore.rules`.
-- **Roles:** custom roles (admin-defined), a user can hold many. Seed Admin / Moderator / Student. Users store a denormalized `permissions` array so rules can check it.
-- **Content:** posts (one author each) + Reddit-style threaded comments. No images in v1 (image links / Cloudinary later). No email blast in v1 (`mailto:` BCC / EmailJS later).
+- **Single-page app** with two looks: **Reddit-style student board** (`/`) and **CRM-style admin panel** (`/admin/*`, lazy-loaded).
+- **Classes:** users can belong to many classes (`classIds`). New users sign up **pending** (no classes/roles) until an admin assigns them.
+- **Roles:** custom roles (admin-defined, `roles/{slug}` master collection, no enums), a user can hold many (`roleIds`). Seed Admin / Moderator / Student. Users store a derived `permissions` array so rules can check it.
+- **Content:** posts (one class + one author, embedded `links` array) + Reddit-style threaded comments. Timestamps everywhere; soft deletes on users, posts, comments. No file uploads (links to external apps). No upvotes in v1. No email blast in v1 (`mailto:` BCC / EmailJS later); SMS has no free path (Remind/GroupMe link).
+- **Data model** is fixed in the plan § Data model (decided 2026-10-08) — read it before touching Firestore code.
 - **Security model:** `firestore.rules` is the backend contract (like Laravel policies + Form Requests). Never rely on UI checks alone.
 
 ### Stack (pinned in plan)
@@ -72,24 +75,25 @@
 
 ## Continuity (rolling — agent updates on end session)
 
-**Last updated:** 2026-10-07
+**Last updated:** 2026-10-08
 
 ### Last session
 
-**2026-10-07 (session 2) — Firebase setup + Phase 0 complete; hello-world live**
+**2026-10-08 (session 3) — Planning only: data model, two-UI design, React rules, Firebase MCP (no app code)**
 
-- **Firebase** project `mcx-respiratory` on Spark ($0): Email/Password auth on, `ktabudlong.github.io` in authorized domains, public-facing name set, Firestore created in **production mode** (everything locked until Phase 2 rules). Google Analytics got enabled on the project — harmless, not used in the app.
-- **GitHub:** a stray `mcxrt.com` custom domain was removed (user doesn't own it; `CNAME` deleted). Pages source = **GitHub Actions**. Default branch switched to **`main`**; work on `dev`, user merges `dev` → `main` to deploy.
-- **Phase 0 scaffold** (hand-written, not `npm create vite`): Vite 8.3, React 19.3, TS 6.0.3, Tailwind 4.3, shadcn (`button`, `card`), react-router 8.4 hash router, Vitest 5, ESLint 9 + Prettier copied from `ih_planner`. `src/lib/firebase.ts` (throws a clear error if config is missing), `src/lib/config.ts` (`ALLOWED_EMAIL_DOMAINS` + `isAllowedEmail`, 4 tests), `pages/home.tsx` + `pages/not-found.tsx`. `.cursor/rules/` (GENERAL, imports, responsive) + Tailwind skill.
-- **Version decisions:** firebase stays **12.19** (13.0 just released); ESLint stays **9** (react/import plugins don't support 10). `npm audit` flags `@grpc/grpc-js` via Firebase — Node-only, not in the browser bundle; ignore (the "fix" downgrades to firebase 9).
-- **Config decision:** GitHub repo/environment variables didn't reach the build (they'd been put under the `github-pages` environment and one was missing). Switched to a committed **`.env.production`** (public identifiers) and removed the `vars.*` lines from the workflow. User should delete the leftover environment variables under Settings → Environments → `github-pages`.
-- **Live:** https://ktabudlong.github.io/mcx_respiratory/ shows the hello-world card connected to `mcx-respiratory`. CI runs lint/format/types/tests before building.
+- **Data model decided** (plan § Data model): `classes`, `roles/{slug}` (master table; permissions are code constants stored per role), `users/{uid}` (`classIds[]`, `roleIds[]`, derived `permissions[]`), private `userContacts/{uid}` (E.164 phone + SMS opt-in; separate doc because rules are per document), `posts` (`classId`, `userId`, embedded `links[{url,label}]`, `pinned`), `posts/{id}/comments` (threaded via `parentId`). camelCase fields; `createdAt`/`updatedAt` server timestamps; soft delete = `deletedAt` written as `null` on create. Author names joined client-side (no `authorName` copies); comment counts via `count()`.
+- **User decisions:** users can be in many classes; self-signed-up users are **pending** until an admin assigns class + roles; threaded comments kept; links embedded; **upvotes after launch**; app must stay a **single-page app**.
+- **Accounts (plan § Account creation):** **stepper sign-up** (account → verify email → profile → done; step derived from account state). Admins can also **create accounts directly** from the users table: second Firebase app instance + random hidden temp password + `sendPasswordResetEmail` as the "set your password" invite. User delete = soft delete (client can't delete others' Auth logins). Permissions `users.view` (table + contacts) and `users.manage` (CRUD/approve/assign); `users.manage` can only grant permissions it holds. **Users table (search by first/last name) + classes CRUD moved to Phase 2**; posts now Phase 3 (days 11–14).
+- **UI:** Reddit-style student board (`board-layout`, class switcher, right sidebar, comment thread lines) + CRM-style admin panel (`admin-layout`, lazy-loaded, sidebar, dashboard, `@tanstack/react-table` data tables with filters/bulk actions, detail pages, moderation/restore). Phase 5 grew to days 16–21; launch ~4 weeks.
+- **Rules/tooling:** new `.cursor/rules/react-standards.mdc` (SOLID in React terms, layers, SPA navigation); `GENERAL.mdc` gained SPA + MCP notes. `.cursor/mcp.json` adds the official **Firebase MCP** (`--only auth,firestore`) — points at production, ask before writes. Not yet signed in / project not selected.
+- Email burst: `mailto:` BCC / EmailJS later. SMS: no free path (Twilio needs server + A2P 10DLC; carrier gateways closing) → link to Remind/GroupMe.
 
 ### Resume here
 
-1. (User, optional) Delete the 5 unused environment variables under GitHub **Settings → Environments → github-pages** (keep the environment itself).
-2. **Phase 1 — Auth:** `AuthProvider` (`src/context/auth-provider.tsx`), sign up / log in / log out / verify email / password reset pages, school-domain check via `isAllowedEmail`, `auth-layout.tsx`, protected routes. Creating the `users/{uid}` profile doc needs Firestore rules — either write a minimal `users` rule early or defer profile creation to Phase 2 (decide at start).
-3. Bundle is ~815 kB (Firestore SDK); fine for now — consider route-level code splitting later.
+1. (User) Commit on `dev`. Optional: delete the 5 unused env variables under GitHub **Settings → Environments → github-pages**.
+2. **Phase 1 code is done and the Phase 1 rules are deployed** (Firebase MCP signed in as `laotabudlong@gmail.com`, active project `mcx-respiratory`). Manual test passed with `ktabudlong@student.ccc.edu` (verification email delivered, profile saved, `/pending` shown). That account is the planned first admin.
+3. **Phase 2:** full `firestore.rules` (`isMember`, `isActive`, `can()`, `users.view`/`users.manage`, no privilege escalation), seed roles, first-admin steps, lazy-loaded admin shell, classes table, users table (search by first/last name, admin-created accounts via second app instance + set-password email, approve pending, soft delete/restore).
+4. Bundle is ~923 kB (Firestore SDK + auth screens); admin panel will be lazy-loaded starting Phase 2.
 
 ### Caveats
 
@@ -98,3 +102,5 @@
 - `ktabudlong.github.io` is already in Firebase Auth **authorized domains**; add any future custom domain there too (and change Vite `base` to `/`).
 - `npx shadcn add …` writes `import { cn } from "cn"` (TS 6 has no `baseUrl`) — fix to `@/lib/utils` after each add.
 - Laragon's `.test` URL won't work for this project; always use `npm run dev`.
+- Firebase MCP has no emulator behind it yet — every write hits **production**. Ask the user first.
+- Until the Phase 2 users table, pending users are approved by hand (Firebase console, or MCP with the user's OK).
