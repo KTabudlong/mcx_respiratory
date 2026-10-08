@@ -21,7 +21,7 @@ alwaysApply: true
 
 This repo has no Laravel, PHP, MySQL, or Inertia. Where global rules mention them:
 
-- **Routes** live in `src/router.tsx` (single source of truth). Use react-router's `<Link>` for in-app navigation.
+- **Single-page app (user requirement):** one `index.html`, all navigation client-side. **Routes** live in `src/router.tsx` (single source of truth). Navigate with react-router's `<Link>` / `useNavigate()` — never `<a href>`, `window.location`, or `location.reload()` for in-app pages (including after login, logout, and form saves).
 - **`firestore.rules` is the backend contract** — the equivalent of policies + Form Requests. Every permission check in the UI must also exist in the rules; never rely on UI checks alone.
 - **Data** comes from small Firestore hooks in `src/hooks/` (live `onSnapshot` listeners), not Inertia props or a data-fetching library.
 - **Validation:** small manual checks with plain `useState` forms; the rules re-validate on Firebase's side.
@@ -42,7 +42,8 @@ This repo has no Laravel, PHP, MySQL, or Inertia. Where global rules mention the
 
 ## Imports and UI helpers
 
-- Scoped rules **`imports-and-exports.mdc`** and **`responsive-design.mdc`** attach for files under `src/`.
+- Scoped rules **`imports-and-exports.mdc`**, **`react-standards.mdc`** (SOLID in React terms, layers, hooks), and **`responsive-design.mdc`** attach for files under `src/`.
+- **Firebase MCP** (`.cursor/mcp.json`, Auth + Firestore tools only) points at the **real production project** until the emulator exists — read freely, but ask the user before any write, delete, or rules deploy.
 - Tailwind work: `.cursor/skills/tailwindcss-development/SKILL.md`.
 
 ## Dev workflow

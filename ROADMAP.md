@@ -44,16 +44,18 @@
 
 - [ ] Sign up / log in / log out / verify email / password reset
 - [ ] School-domain check (`student.ccc.edu`, `ccc.edu`)
-- [ ] User profile doc on first login; `AuthProvider` + protected routes
+- [ ] User profile doc on first login (pending: no classes/roles yet) + `/pending` screen; `AuthProvider` + protected routes
 
 ### Phase 2 — Rules + roles foundation (days 6–7)
 
-- [ ] `firestore.rules` (`isMember`, `can()`), deploy with firebase-tools
+- [x] Data model decided (2026-10-08): classes, roles, users (`classIds`/`roleIds` arrays), `userContacts`, posts (embedded links), threaded comments; soft deletes + timestamps — see plan § Data model
+- [ ] `firestore.rules` (`isMember`, `can()`, class-scoped reads), deploy with firebase-tools
 - [ ] Seed Admin / Moderator / Student; first-admin setup steps
 - [ ] Manual checks in Rules Playground
 
 ### Phase 3 — Posts (days 8–11)
 
+- [ ] Reddit-style `board-layout` (top bar, class switcher, right sidebar)
 - [ ] Feed (pinned first, paging 20), create / edit / delete / pin
 - [ ] Loading, empty, error states
 
@@ -61,11 +63,15 @@
 
 - [ ] Comment / reply / edit / soft delete; moderator delete; depth limit; counts
 
-### Phase 5 — Admin (days 16–18)
+### Phase 5 — CRM admin panel (days 16–21)
 
-- [ ] Users list + role assignment; custom role editor; permissions recalculation
+- [ ] Lazy-loaded `admin-layout` (sidebar, breadcrumbs) + dashboard stat cards
+- [ ] Shared data table (`@tanstack/react-table`): search, filters, sort, paging, row selection, bulk actions
+- [ ] Users table + detail: approve pending, assign classes/roles, soft delete/restore, "email selected"
+- [ ] Classes table + detail (create / edit / archive); roles table + permission editor + permissions recalculation
+- [ ] Posts / comments moderation tables (incl. restore)
 
-### Phase 6 — Polish + launch (days 19–21)
+### Phase 6 — Polish + launch (days 22–24)
 
 - [ ] Install Java 21 (winget); emulator + automated rules tests
 - [ ] Mobile + accessibility pass; invite the class
