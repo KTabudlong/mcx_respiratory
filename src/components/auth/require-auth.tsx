@@ -14,7 +14,15 @@ export function RequireAuth({
 }: {
     allowPending?: boolean;
 }) {
-    const { user, emailVerified, profile, contact, loading, error } = useAuth();
+    const {
+        user,
+        emailVerified,
+        profile,
+        contact,
+        memberships,
+        loading,
+        error,
+    } = useAuth();
     const location = useLocation();
 
     if (loading) {
@@ -49,7 +57,7 @@ export function RequireAuth({
         return <Navigate to="/signup" replace />;
     }
 
-    if (!allowPending && !isApproved(profile)) {
+    if (!allowPending && !isApproved(profile, memberships.length)) {
         return <Navigate to="/pending" replace />;
     }
 

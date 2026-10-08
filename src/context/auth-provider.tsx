@@ -5,8 +5,10 @@ import { useEffect, useState } from 'react';
 
 import { AuthContext } from '@/context/auth-context';
 import { useDocument } from '@/hooks/use-document';
+import { useMyMemberships } from '@/hooks/use-memberships';
 import { reloadCurrentUser } from '@/lib/auth';
 import { auth } from '@/lib/firebase';
+import { hasClassPermission, hasPermission } from '@/lib/permissions';
 import type { UserContact, UserProfile } from '@/types';
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -33,6 +35,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const contact = useDocument<UserContact>(
         uid ? `userContacts/${uid}` : null,
     );
+    // The members rules need an active users doc, so wait for it.
+    const memberships = useMyMemberships(
+        profile.data?.deletedAt === null ? uid : null,
+    );
 
     // user.reload() mutates the same User object, so copy emailVerified into
     // state to re-render.
@@ -53,9 +59,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 emailVerified: session.emailVerified,
                 profile: profile.data,
                 contact: contact.data,
-                loading: !session.ready || profile.loading || contact.loading,
-                error: profile.error ?? contact.error,
+                memberships: memberships.data,
+                loading:
+                    !session.ready ||
+                    profile.loading ||
+                    contact.loading ||
+                    memberships.loading,
+                error: profile.error ?? contact.error ?? memberships.error,
                 refreshUser,
+                can: (permission) => hasPermission(profile.data, permission),
+                canIn: (classId, permission) =>
+                    hasClassPermission(
+                        profile.data,
+                        memberships.data.find(
+                            (membership) => membership.classId === classId,
+                        ),
+                        permission,
+                    ),
             }}
         >
             {children}

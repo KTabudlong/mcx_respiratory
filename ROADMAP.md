@@ -28,7 +28,7 @@
 
 **Planning last reviewed:** 2026-10-08
 
-**Current milestone:** Phase 1 — auth (sign up, log in, verify email, pending profile, protected routes).
+**Current milestone:** Phase 2b — implement per-class roles (designed 2026-10-08), then Phase 3 (posts).
 
 ### Planning — data model + UI ✅ 2026-10-08
 
@@ -60,12 +60,25 @@
 ### Phase 2 — Rules, roles + users admin (days 6–10)
 
 - [x] Data model decided (2026-10-08): classes, roles, users (`classIds`/`roleIds` arrays), `userContacts`, posts (embedded links), threaded comments; soft deletes + timestamps — see plan § Data model
-- [ ] Full `firestore.rules` (`isMember`, `isActive`, `can()`, class-scoped reads, no privilege escalation), deployed
-- [ ] Seed Admin / Moderator / Student; first-admin setup steps
-- [ ] Lazy-loaded `admin-layout` shell (sidebar, breadcrumbs)
-- [ ] Classes table (create / edit / archive)
-- [ ] Users table: search by first/last name; add user (second Firebase app instance + set-password email); edit; approve pending; assign classes/roles; soft delete / restore (`users.view` / `users.manage`)
-- [ ] Manual checks in Rules Playground
+- [x] Full `firestore.rules` for users / contacts / classes / roles (`isMember`, `isActive`, `can()`, no privilege escalation), deployed 2026-10-08 (posts/comments rules come with Phases 3–4)
+- [x] Seed Admin / Moderator / Student (`roles/admin|moderator|student`); `ktabudlong@student.ccc.edu` made first admin via MCP (steps in handoff § Caveats)
+- [x] Lazy-loaded `admin-layout` shell (sidebar, header, "Back to board")
+- [x] Classes table (create / edit / archive, member counts)
+- [x] Users table: search by first/last name, status filter; add user (second Firebase app instance + set-password email); edit; approve pending; assign classes/roles; deactivate / restore (`users.view` / `users.manage`)
+- [x] **Class-anchored model** (2026-10-08): `classes/{classId}/members/{uid}` pivot replaces `users.classIds`; roles per class (on the membership) + app-wide roles on users; posts/comments will nest under `classes/{classId}/posts`. Users form: classes with per-class roles + app-wide roles
+- [x] Deploy the class-anchored rules + `members.userId` collection-group index; remove the leftover `classIds` field from the admin's user doc (2026-10-08)
+- [x] **Per-class roles designed** (2026-10-08, plan § Data model + § Admin panel): super admin (`admins/{uid}`) → class → class roles (`classes/{c}/roles`, ranked); one role per member; class permissions `admin.access`, `students.view`, `students.manage`, `roles.manage` + content; join requests at sign-up; `users.createdBy`, `members.addedBy`; phone copy on memberships for classmates
+
+### Phase 2b — Per-class roles (next build session)
+
+- [ ] Rules: `isSuperAdmin`, `canIn` via member → class role, rank checks, no escalation, join requests, `createdBy`/`addedBy`, member phone copy; validate + deploy (ask first)
+- [ ] Data: create `admins/{uid}` for the user; delete global `roles` + interim fields (`users.roleIds`/`permissions`) (ask first)
+- [ ] Types + permissions constants (`students.*`, `admin.access`), `canIn` / rank helpers + tests
+- [ ] Sign-up profile step: pick a class → join request; `/pending` copy; profile save syncs phone to memberships
+- [ ] Admin shell: class switcher (classes with `admin.access`), super admin sections
+- [ ] Class pages: Students (roster, join requests, add/create, change role, remove), Roles (rank, color, permission checkboxes)
+- [ ] Super admin pages: Classes (create with default Student + President roles), Users (deactivate/restore, createdBy)
+- [ ] (User) Manual test: create class, make yourself/someone President, sign up a test student who picks the class, approve as President, give Treasurer `admin.access` without `students.manage`
 
 ### Phase 3 — Posts (days 11–14)
 
@@ -79,7 +92,7 @@
 
 ### Phase 5 — Rest of the CRM admin panel (days 19–22)
 
-- [ ] Dashboard stat cards
+- [ ] Dashboard stat cards; breadcrumbs in the admin header
 - [ ] Data table upgrade: filters, sort, column visibility, row selection, bulk actions (incl. "email selected")
 - [ ] User detail tabs (profile, contact, classes/roles, activity); class detail with members
 - [ ] Roles table + permission editor + permissions recalculation
@@ -103,3 +116,6 @@
 - **2026-10-07** — Project planned; plan, handoff, roadmap, and work log created.
 - **2026-10-07** — Phase 0 done: Firebase project set up, app scaffolded, hello-world live on GitHub Pages. Firebase config committed in `.env.production` instead of GitHub variables.
 - **2026-10-08** — Planning milestone: data model (multi-class, pending users, roles master table, private contacts, embedded links, soft deletes), Reddit board + CRM admin design, React standards rule, Firebase MCP. Upvotes moved to after launch. Stepper sign-up; admin-created accounts (second app instance + set-password email); `users.view`/`users.manage`; users table moved to Phase 2 (launch ~4–5 weeks).
+- **2026-10-08** — Phase 1 done and tested. Phase 2 built: full rules deployed, roles seeded, first admin set, lazy-loaded admin panel with classes + users tables. Student role can create posts. Admins land on `/admin` after login; "Open board" opens `/` in a new tab (URLs stay hash-based).
+- **2026-10-08** — Class is the anchor: membership pivot (`classes/{classId}/members/{uid}`), roles per class plus app-wide roles, posts/comments nested under classes.
+- **2026-10-08** — Designed (not built): super admin → class → ranked class roles; class officers get their own admin panel; join requests at sign-up; `createdBy`/`addedBy` audit fields; classmates see phones. Roles editor moves from Phase 5 into Phase 2b.

@@ -2,7 +2,9 @@ import { createHashRouter } from 'react-router';
 
 import { GuestOnly } from '@/components/auth/guest-only';
 import { RequireAuth } from '@/components/auth/require-auth';
+import { RequirePermission } from '@/components/auth/require-permission';
 import AuthLayout from '@/layouts/auth-layout';
+import { ADMIN_PERMISSIONS } from '@/lib/permissions';
 import ForgotPassword from '@/pages/auth/forgot-password';
 import Login from '@/pages/auth/login';
 import Signup from '@/pages/auth/signup';
@@ -32,6 +34,70 @@ export const router = createHashRouter([
     {
         element: <RequireAuth />,
         children: [{ path: '/', element: <Home /> }],
+    },
+    // Admin panel: lazy-loaded so students never download it. Admins don't
+    // need a class to open it (allowPending).
+    {
+        path: '/admin',
+        element: <RequireAuth allowPending />,
+        children: [
+            {
+                element: <RequirePermission anyOf={ADMIN_PERMISSIONS} />,
+                children: [
+                    {
+                        lazy: {
+                            Component: async () =>
+                                (await import('@/layouts/admin-layout'))
+                                    .default,
+                        },
+                        children: [
+                            {
+                                index: true,
+                                lazy: {
+                                    Component: async () =>
+                                        (await import('@/pages/admin/index'))
+                                            .default,
+                                },
+                            },
+                            {
+                                element: (
+                                    <RequirePermission anyOf={['users.view']} />
+                                ),
+                                children: [
+                                    {
+                                        path: 'users',
+                                        lazy: {
+                                            Component: async () =>
+                                                (
+                                                    await import('@/pages/admin/users/index')
+                                                ).default,
+                                        },
+                                    },
+                                ],
+                            },
+                            {
+                                element: (
+                                    <RequirePermission
+                                        anyOf={['classes.manage']}
+                                    />
+                                ),
+                                children: [
+                                    {
+                                        path: 'classes',
+                                        lazy: {
+                                            Component: async () =>
+                                                (
+                                                    await import('@/pages/admin/classes/index')
+                                                ).default,
+                                        },
+                                    },
+                                ],
+                            },
+                        ],
+                    },
+                ],
+            },
+        ],
     },
     { path: '*', element: <NotFound /> },
 ]);

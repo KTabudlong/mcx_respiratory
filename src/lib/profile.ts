@@ -36,7 +36,6 @@ export async function saveOwnProfile({
         batch.set(userRef, {
             ...names,
             email: email.toLowerCase(),
-            classIds: [],
             roleIds: [],
             permissions: [],
             createdAt: serverTimestamp(),

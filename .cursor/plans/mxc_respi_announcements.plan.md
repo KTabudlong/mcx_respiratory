@@ -98,7 +98,8 @@ Firestore has no SQL. Here is how its concepts map to what you know:
 - A **subcollection** (`posts/{id}/comments`) is like a child table whose foreign key is built into its path.
 - **There are no JOINs.** Either copy values onto each document or "join" on the client. At class size this app joins on the client (see Data model).
 - **No foreign keys, cascades, or unique constraints** except the document ID. Rules can check `exists()`; uniqueness comes from meaningful IDs (`roles/admin`, `users/{uid}`).
-- **Many-to-many uses arrays** for small sets (`roleIds`, `classIds`) instead of pivot collections, because rules can't query a pivot collection.
+- **A pivot table is a subcollection keyed by the other side's ID** (`classes/{classId}/members/{uid}`). Rules can't run queries, but they can `get()`/`exists()` one known path, so "is this user in this class?" is a single lookup. Small lists that are never looked up from the other side stay as arrays (`roleIds`).
+- **A foreign key is either a path segment** (`classes/{classId}/posts/...` — the post can't exist outside its class) **or an ID field** (`userId`). Nothing enforces them; rules act as the constraint (`exists()` on create), and there are no cascades (we soft delete / archive instead).
 - **Rules can't query or loop** and allow at most 10 document lookups per request, so permission checks must be shallow (hence the stored `permissions` array).
 - **Rules are per document, not per field** — private fields go in a separate document (`userContacts`).
 - **A missing field is not null** — always write `deletedAt: null` on create.
@@ -135,14 +136,14 @@ Two ways an account gets created; both end in the same stepper.
 - **Self sign-up (stepper at `/signup`):**
   1. **Account:** school email + password (domain check via `isAllowedEmail`).
   2. **Verify email:** send the link; "I've verified" button reloads the user; "Resend" button.
-  3. **Profile:** first name, last name, contact number (E.164) + SMS opt-in. Creates `users/{uid}` (pending) and `userContacts/{uid}`.
-  4. **Done:** pending users go to `/pending`; users who already have a class go to the board.
+  3. **Profile:** first name, last name, contact number (E.164) + SMS opt-in, and **pick your class** (active classes). Creates `users/{uid}` (pending, `createdBy: null`), `userContacts/{uid}` and `classes/{classId}/joinRequests/{uid}`.
+  4. **Done:** pending users go to `/pending` ("waiting for your class officers to approve you"); users who already have a class go to the board.
   - The current step is **derived from account state**, not stored: signed in but unverified → step 2; verified with no profile (or no name) → step 3. Closing the tab and logging in later resumes at the right step.
-- **Admin-created (users table, `users.manage`):**
-  - The admin enters first/last name, school email, classes and roles. The user is approved immediately.
+- **Officer/super-admin-created (class Students page, `students.manage`; or the super admin's Users page):**
+  - The creator enters first/last name, school email and the role in their class. The user is approved immediately; `users.createdBy` = creator's uid, `members.addedBy` = creator's uid.
   - The browser can't create someone else's login with the normal client SDK (that needs the Admin SDK on a server = Blaze). Free workaround: a **second Firebase app instance** (`initializeApp(config, 'admin-create')`) calls `createUserWithEmailAndPassword` so the admin stays signed in on the main instance, then signs out of the second instance.
   - The temporary password is random (`crypto.getRandomValues`), never shown or stored. The admin then calls `sendPasswordResetEmail`, so Firebase emails the student a **"set your password" link** — free, from Firebase's own mailer.
-  - The admin writes `users/{newUid}` with classes, roles and permissions.
+  - The creator writes `users/{newUid}` and the class membership in one batch.
   - The student sets a password, logs in, verifies their email (step 2) and confirms their profile and contact number (step 3), then lands on the board.
   - `auth/email-already-in-use` shows a clear error ("this person already has an account — find them in the table").
 - **Deleting a user** is a soft delete (`deletedAt`). The client can't delete or disable someone else's Auth login without the Admin SDK; rules block soft-deleted users from everything (`isActive()`). If ever needed, the login can be disabled by hand in the Firebase console (or the Firebase MCP's `auth_update_user`).
@@ -157,26 +158,65 @@ Designed normalized first (MySQL-style ERD), then mapped to Firestore. Field nam
 - Soft delete (`users`, `posts`, `comments`): `deletedAt: Timestamp | null`. Every create writes `deletedAt: null` explicitly, because Firestore's `where('deletedAt', '==', null)` doesn't match documents where the field is missing. Rules enforce it.
 - IDs are Firestore auto IDs, except `users/{uid}` (Firebase Auth uid) and `roles/{slug}` (readable, unique by construction).
 
+**The class is the anchor; roles belong to classes (decided 2026-10-08, NOT YET IMPLEMENTED).** All class data lives under `classes/{classId}`; the path is the foreign key. Each class has its **own roles** (Class A: Student, President, Treasurer; Class B: Student, Pres, Treasurer, Secretary) with their own permissions. The only app-wide role is **super admin** (the user), who manages every class. Hierarchy: **super admin → class → roles**.
+
+> **Code status:** the deployed code/rules (2026-10-08) still use the interim model — a global `roles` collection, `members.roleIds[]` + derived `permissions`, app-wide `users.roleIds`. The next build session replaces it with the model below.
+
+```
+admins/{uid}                     super admins (only a super admin writes here)
+classes/{classId}
+  roles/{roleId}                 this class's roles (master table per class)
+  members/{uid}                  pivot: class_members (class_id, user_id, role_id)
+  joinRequests/{uid}             pending sign-ups asking to join this class
+  posts/{postId}                 FK class (path), userId
+    comments/{commentId}         FK post (path), userId, parentId (self FK)
+users/{uid}                      people (one per Auth login)
+userContacts/{uid}               1:1 with users, private (SMS consent)
+```
+
 **Collections:**
 
+- `admins/{uid}`: `{ createdAt }`. Super admin = this doc exists. Separate collection so no class officer can ever grant it; first one is created by hand (console/MCP). Super admins can do everything in every class plus app-wide pages (all classes, all users, super admins).
 - `classes/{classId}`: `{ name, startYear, endYear | null, archivedAt | null, createdAt, updatedAt }`
-  - A class is archived instead of deleted.
-- `roles/{roleId}` (master/reference table, no enums): `{ name, color, permissions: string[], createdAt, updatedAt }`
-  - `roleId` is a slug: `admin`, `moderator`, `student` (seeded; admins can add more, e.g. `instructor`).
-  - Permissions are named constants in code (`src/lib/permissions.ts`), because each one only works once the code and `firestore.rules` check it: `posts.create`, `posts.edit_any`, `posts.delete_any`, `posts.pin`, `comments.delete_any`, `users.view` (see the users table and contact numbers), `users.manage` (create, edit, soft delete/restore, approve, assign classes and roles), `roles.manage`, `classes.manage`.
-- `users/{uid}`: `{ firstName, lastName, email, classIds: string[], roleIds: string[], permissions: string[], createdAt, updatedAt, deletedAt }`
-  - **Many-to-many as arrays** (Firestore's pivot table for small sets): a user can be in many classes (instructors) and hold many roles.
-  - **Self-signed-up users are "pending":** they sign up with `classIds: []`, `roleIds: []`, `permissions: []` and see a waiting screen until someone with `users.manage` assigns a class and roles. Admin-created users start approved (see § Account creation).
-  - `roleIds` is the source of truth. `permissions` is a derived copy of the combined permissions of the user's roles, because security rules can't loop over roles. Whenever an admin changes a role or a user's roles, the admin screen recalculates `permissions` for the affected users in one batched write. This is the one deliberate denormalization.
+  - Only super admins create / edit / archive classes. A class is archived instead of deleted.
+  - Creating a class also creates its default roles in the same batch: **Student** (rank 1, `posts.create`) and **President** (top rank, all class permissions). The super admin assigns the first President.
+- `classes/{classId}/roles/{roleId}` (per-class master table, no enums): `{ name, color, rank, permissions: string[], createdAt, updatedAt }`
+  - **`rank`** (number, higher = more power) gives a Discord-style hierarchy: you can only create/edit/delete roles ranked **below** your own role, and only manage members whose role is ranked below yours.
+  - Deleting a role is blocked in the UI while members still hold it.
+- `classes/{classId}/members/{uid}` (pivot): `{ userId, roleId, phone, addedBy, createdAt, updatedAt }`
+  - **Exactly one role per person per class** (user decision) → rules `get()` the role directly; no stored permission copies, and editing a role's permissions applies to everyone instantly. A Treasurer is still a student — their role just includes `posts.create`.
+  - Doc ID = uid (rules check membership with one `exists()`); `userId` repeats it for collection-group queries ("my classes", index on `members.userId`).
+  - `addedBy`: uid of whoever approved the join request / added them (audit).
+  - `phone`: copy of the member's phone (E.164 or `''`) so **all classmates can see it** (user decision: promotes communication). Rules can't check "shares a class" on `userContacts`, so the number is copied per membership. Written by the member themselves (profile save updates every membership in one batch) and on approval (copied from the join request). This is the one deliberate denormalization.
+  - Removing someone from a class deletes the pivot doc; their posts stay.
+- `classes/{classId}/joinRequests/{uid}`: `{ userId, phone, createdAt }`
+  - Sign-up's profile step asks the student to **pick their class** (active classes). Officers with `students.manage` in that class approve (batch: create member with the Student role + delete request) or reject (delete request).
+- `users/{uid}`: `{ firstName, lastName, email, createdBy | null, createdAt, updatedAt, deletedAt }`
+  - **`createdBy`**: `null` for self sign-up; otherwise the uid of the officer/super admin who created the account (rules: must equal the creator's uid).
+  - **Pending** = no memberships (and not a super admin).
+  - Deactivate/restore (`deletedAt`) is super admin only, since a person can be in several classes. Officers remove people from *their* class instead.
   - Email must be `@student.ccc.edu` or `@ccc.edu` (copied from Auth; rules check it matches the token).
 - `userContacts/{uid}`: `{ phone, smsOptIn, smsOptInAt | null, updatedAt }`
-  - Separate document because Firestore rules are per document, not per field: only the owner and `users.manage` can read it.
+  - Source of truth for the phone + SMS consent; readable by the owner and super admins only. Classmates see the membership copy.
   - `phone` is stored in E.164 format (`+13125551234`). The opt-in flag and its timestamp are kept now so SMS later needs no migration (US texting requires consent).
-- `posts/{postId}`: `{ classId, userId, title, body, links: { url, label }[], pinned, createdAt, updatedAt, deletedAt }`
-  - Each post belongs to one class and has exactly one author.
+
+**Class permissions** (code constants in `src/lib/permissions.ts`, shown as checkboxes in each class's role editor; all apply only inside that class):
+
+| Permission | Allows |
+|---|---|
+| `admin.access` | Open the admin panel for this class |
+| `students.view` | See the class roster (names, roles) in the admin panel |
+| `students.manage` | Approve/reject join requests, add students (existing users or new accounts via set-password email), change their role, remove them from the class |
+| `roles.manage` | Create/edit/delete roles ranked below their own, and set those roles' permissions |
+| `posts.create`, `posts.edit_any`, `posts.delete_any`, `posts.pin`, `comments.delete_any` | Content |
+
+- **No escalation:** a role can only be given permissions the editor's own role has.
+- Example (Class A): Student = `posts.create`. President = everything. The President gives Treasurer `admin.access` + `students.view` (+ `posts.create`) but not `students.manage` → Treasurer opens the admin panel and sees the roster but can't change students.
+- `classes/{classId}/posts/{postId}`: `{ userId, title, body, links: { url, label }[], pinned, createdAt, updatedAt, deletedAt }`
+  - Belongs to its class by path; exactly one author (`userId`).
   - `links` is embedded (max ~10): files live in external apps (Drive, OneDrive, Cloudinary later) and the post only references them. Links are never queried alone, so a subcollection would only add one read per post in the feed.
-- `posts/{postId}/comments/{commentId}`: `{ userId, parentId | null, body, createdAt, updatedAt, deletedAt }`
-  - The post ID is part of the path (like a foreign key). "All comments by a user" uses a collection-group query on `userId`.
+- `classes/{classId}/posts/{postId}/comments/{commentId}`: `{ userId, parentId | null, body, createdAt, updatedAt, deletedAt }`
+  - Class and post come from the path, so rules check membership without reading the post. "All posts/comments by a user" or admin moderation tables use collection-group queries.
   - Threaded replies: the client builds the reply tree from `parentId` (depth limit 5). Soft-deleted comments show as "[deleted]" so their replies stay in place, like Reddit.
 
 **Joins and counts (stay normalized at class size):**
@@ -188,18 +228,21 @@ Designed normalized first (MySQL-style ERD), then mapped to Firestore. Field nam
 
 - Every read requires `isMember()`, so nothing is public.
 - `isActive()` = `isMember()` + own `users` doc exists with `deletedAt == null`. Everything beyond reading/creating your own profile requires it, so soft-deleted users are locked out.
-- Class content (posts, comments) is only readable by users whose `classIds` contain the post's `classId`. Pending users (no classes) can only read their own profile.
+*(Target model — see § Data model. Implemented rules are still the interim version until the next build session.)*
+
+- `isSuperAdmin()` = active + `exists(admins/{me})`. `inClass(c)` = super admin or `classes/c/members/{me}` exists. `canIn(c, p)` = super admin, or `p in get(classes/c/roles/{myMember.roleId}).permissions` (2 lookups). `myRank(c)` = that role's `rank` (super admin = unlimited).
 - `users/{uid}`:
-  - Self-create: only your own document, with empty `classIds`, `roleIds` and `permissions`, and `deletedAt: null`.
-  - Self-update: only `firstName` and `lastName`.
-  - Active members with at least one class can read other users' docs (names for the client-side join); `users.view` can read all, including pending and soft-deleted.
-  - `users.manage` can create any user's doc (admin-created accounts), change `classIds`, `roleIds` and `permissions`, and soft delete / restore.
-  - **No privilege escalation:** a `users.manage` holder can only grant permissions they hold themselves (`request.resource.data.permissions.hasOnly(perms())`).
-- `userContacts/{uid}`: read/write by the owner; read by `users.view`; written by `users.manage`.
-- `classes`: readable by members; only `classes.manage` can write.
-- `roles`: only `roles.manage` can write.
-- `posts`:
-  - Create requires `posts.create`, `userId` must equal the logged-in user, and `classId` must be one of the user's `classIds`.
+  - Self-create: own doc only, `createdBy == null`, `deletedAt: null`.
+  - Officer/super-admin create (new account): `createdBy == request.auth.uid`, and the same batch creates the membership in a class where the creator has `students.manage` (rule checks `existsAfter` on that member doc via a `createdInClassId`-style check, finalized at build time).
+  - Self-update: only `firstName` and `lastName`. Deactivate/restore: super admin only.
+  - Any active account can `get` a single profile (names for the client-side join); only super admins can `list` the collection.
+- `classes/{c}/members/{uid}`: readable by members of that class (roster + phone), the person themselves (collection-group "my classes"), and super admins. Create/update/delete need `students.manage` in `c`, the target's current and new role must rank **below** `myRank(c)`, and create checks the foreign keys (`exists` class, `existsAfter` user, `exists` role). `addedBy == request.auth.uid`. The member can update only their own `phone` copy.
+- `classes/{c}/roles/{roleId}`: readable by class members; create/update/delete need `roles.manage` in `c`, `rank < myRank(c)` (before and after), and `permissions.hasOnly(myRole.permissions)`.
+- `classes/{c}/joinRequests/{uid}`: created by the requester (pending, own uid); read/delete by `students.manage` in `c` and the requester.
+- `userContacts/{uid}`: written only by the owner; read by the owner and super admins.
+- `classes`: readable by active accounts; only super admins write. `admins`: only super admins read/write.
+- `posts` (`classes/{c}/posts`):
+  - Create requires `canIn(c, 'posts.create')` and `userId` must equal the logged-in user.
   - Update is allowed for the author, or anyone with `posts.edit_any`. `pinned` can only change with `posts.pin`.
   - Delete is allowed for the author, or anyone with `posts.delete_any`.
   - Delete means soft delete (`deletedAt` set). Restoring (`deletedAt` back to `null`) and soft-deleted items in admin tables require `posts.delete_any` (`comments.delete_any` for comments).
@@ -207,14 +250,8 @@ Designed normalized first (MySQL-style ERD), then mapped to Firestore. Field nam
   - Any verified member can create a comment as themselves.
   - The author can edit or soft-delete their own comment.
   - Anyone with `comments.delete_any` can moderate comments.
-- A helper function looks up the current user's permissions:
-
-```
-function perms() { return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.permissions; }
-function can(p) { return isMember() && p in perms(); }
-```
-
-- The first admin is set up once by hand in the Firebase console: create an `Admin` role with all permissions and assign it to your user. The repository will include written steps for this.
+- Each `get()`/`exists()` counts toward the 10-lookup limit per request (20 per batch); class checks cost ~2–4.
+- The first super admin is set up once by hand (Firebase console or MCP): create `admins/{uid}`.
 
 ## Two interfaces, one SPA — decided 2026-10-08
 
@@ -235,7 +272,8 @@ Both use the same hooks, types, `AuthProvider` and `firestore.rules`; only the l
 
 ### Admin panel (CRM-style)
 
-- **Shell:** collapsible left sidebar (shadcn `sidebar`), top bar with breadcrumbs and user menu, "Back to board" link. On mobile the sidebar becomes a drawer.
+- **Shell:** collapsible left sidebar (shadcn `sidebar`), top bar with breadcrumbs and user menu, "Open board" button (opens `/` in a new tab). On mobile the sidebar becomes a drawer.
+- **Landing (decided 2026-10-08):** after login, users with any admin permission land on `/admin`; everyone else on `/`. Opening `/` directly never redirects, so admins can keep the board open in a second tab. URLs stay hash-based (`/#/admin/users`) — the user chose this over clean URLs with a `404.html` fallback.
 - **Access:** visible to users with at least one admin permission (`users.view`, `users.manage`, `roles.manage`, `classes.manage`, `posts.delete_any`, `comments.delete_any`); each section is gated by its own permission, in the UI **and** in `firestore.rules`.
 - **Data tables** (shadcn data-table pattern on `@tanstack/react-table`): search, filters (class, role, status: active / pending / deleted), sortable columns, pagination, column visibility, row selection with **bulk actions**.
   - Filtering and search run in memory: at class scale the admin loads the whole collection (a few hundred documents). Firestore has no `LIKE`/full-text search; if this ever grows past that, add lowercase prefix-search fields first.
@@ -243,11 +281,17 @@ Both use the same hooks, types, `AuthProvider` and `firestore.rules`; only the l
 
 | Route | Purpose |
 | --- | --- |
-| `/admin` | Dashboard: pending users count, members per class, posts this week (`count()` aggregations) |
-| `/admin/users`, `/admin/users/:uid` | Users table (`users.view`) with search by first or last name + detail; add user (admin-created account), edit, approve pending, soft delete / restore (`users.manage`); bulk assign class/role; bulk "email selected" (`mailto:` BCC) |
-| `/admin/classes`, `/admin/classes/:id` | Classes table + detail with its members; create, edit, archive |
-| `/admin/roles` | Roles table; create/edit roles with permission checkboxes (recalculates users' `permissions`) |
-| `/admin/posts`, `/admin/comments` | Moderation tables including soft-deleted items; restore or delete |
+Two levels (decided 2026-10-08). Class officers see a **class switcher** listing only classes where their role has `admin.access`; super admins see every class plus the app-wide pages.
+
+| Route | Who | Purpose |
+| --- | --- | --- |
+| `/admin` | any admin access | Redirects to the first class you can manage (or the super admin dashboard) |
+| `/admin/classes/:classId/students` | `students.view` / `students.manage` | Class roster with search by first/last name, phone, role; join requests (approve/reject); add student (existing user or new account); change role; remove from class |
+| `/admin/classes/:classId/roles` | `roles.manage` | This class's roles: name, color, rank, permission checkboxes (only roles ranked below yours) |
+| `/admin/classes/:classId/posts` | `posts.delete_any` / `comments.delete_any` | Moderation tables incl. soft-deleted items; restore |
+| `/admin/classes` | super admin | All classes: create (with default Student + President roles), edit, archive |
+| `/admin/users` | super admin | All users: search, deactivate/restore, `createdBy`, which classes they're in |
+| `/admin/admins` | super admin | Super admins list (later; first one by hand) |
 
 ### Other routes
 

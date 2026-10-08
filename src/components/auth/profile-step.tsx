@@ -7,25 +7,10 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { getErrorMessage } from '@/lib/errors';
+import { MAX_NAME_LENGTH, validateName } from '@/lib/names';
 import { toE164 } from '@/lib/phone';
 import { saveOwnProfile } from '@/lib/profile';
 import type { UserProfile } from '@/types';
-
-const MAX_NAME_LENGTH = 50;
-
-function validateName(label: string, value: string) {
-    const trimmed = value.trim();
-
-    if (trimmed === '') {
-        return `${label} is required.`;
-    }
-
-    if (trimmed.length > MAX_NAME_LENGTH) {
-        return `${label} must be ${MAX_NAME_LENGTH} characters or fewer.`;
-    }
-
-    return '';
-}
 
 // Admin-created accounts already have a profile; the student confirms their
 // name and adds their own contact details (SMS consent must come from them).

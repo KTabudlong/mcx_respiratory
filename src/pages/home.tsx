@@ -1,3 +1,4 @@
+import { AdminLink } from '@/components/auth/admin-link';
 import { Button } from '@/components/ui/button';
 import {
     Card,
@@ -23,7 +24,8 @@ export default function Home() {
                         The class board is coming in Phase 3.
                     </CardDescription>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="flex flex-wrap gap-2">
+                    <AdminLink />
                     <Button variant="outline" onClick={() => logOut()}>
                         Log out
                     </Button>

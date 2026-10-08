@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest';
 
-import { toE164 } from '@/lib/phone';
+import { formatPhone, toE164 } from '@/lib/phone';
+
+describe('formatPhone', () => {
+    it('formats US numbers and leaves others as E.164', () => {
+        expect(formatPhone('+13125551234')).toBe('(312) 555-1234');
+        expect(formatPhone('+639171234567')).toBe('+639171234567');
+        expect(formatPhone('')).toBe('');
+    });
+});
 
 describe('toE164', () => {
     it('formats US numbers typed in common ways', () => {

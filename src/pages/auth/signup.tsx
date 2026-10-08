@@ -40,7 +40,15 @@ const STEP_COPY: Record<SignupStep, { title: string; description: string }> = {
 };
 
 export default function Signup() {
-    const { user, emailVerified, profile, contact, loading, error } = useAuth();
+    const {
+        user,
+        emailVerified,
+        profile,
+        contact,
+        memberships,
+        loading,
+        error,
+    } = useAuth();
 
     if (loading) {
         return <PageLoader />;
@@ -76,7 +84,11 @@ export default function Signup() {
                         profile={profile}
                     />
                 )}
-                {step === 'done' && <DoneStep approved={isApproved(profile)} />}
+                {step === 'done' && (
+                    <DoneStep
+                        approved={isApproved(profile, memberships.length)}
+                    />
+                )}
             </CardContent>
             {step === 'account' && (
                 <CardFooter className="justify-center text-sm text-muted-foreground">

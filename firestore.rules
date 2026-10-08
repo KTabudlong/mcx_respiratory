@@ -1,9 +1,13 @@
 rules_version = '2';
 
-// Phase 1 (minimal): users can create and read their own pending profile and
-// private contact document. Everything else stays locked until Phase 2.
+// The backend contract (like Laravel policies + Form Requests). Every UI
+// permission check must also exist here. The class is the anchor: class data
+// lives under classes/{classId}. Posts and comments rules arrive with Phases
+// 3 and 4; until then those subcollections stay locked.
 service cloud.firestore {
   match /databases/{database}/documents {
+
+    // ---------- identity ----------
 
     function signedIn() {
       return request.auth != null;
@@ -20,56 +24,255 @@ service cloud.firestore {
         && request.auth.token.email.lower().matches('^[^@]+@(student[.])?ccc[.]edu$');
     }
 
+    function myPath() {
+      return /databases/$(database)/documents/users/$(request.auth.uid);
+    }
+
+    function me() {
+      return get(myPath()).data;
+    }
+
+    // Verified member with a profile that isn't soft-deleted.
+    function isActive() {
+      return isMember() && exists(myPath()) && me().deletedAt == null;
+    }
+
+    // users.permissions is a stored copy of the user's app-wide roles'
+    // permissions, because rules can't loop over roles.
+    function can(permission) {
+      return isActive() && permission in me().permissions;
+    }
+
+    // ---------- class membership (pivot: classes/{classId}/members/{uid}) ----------
+
+    function memberPath(classId, uid) {
+      return /databases/$(database)/documents/classes/$(classId)/members/$(uid);
+    }
+
+    function isClassMember(classId) {
+      return isActive() && exists(memberPath(classId, request.auth.uid));
+    }
+
+    // App-wide roles apply in every class (admins moderate without joining).
+    // Phase 3 adds canIn(classId, permission) for class-scoped permissions.
+    function inClass(classId) {
+      return isClassMember(classId) || (isActive() && me().roleIds.size() > 0);
+    }
+
+    // ---------- validation helpers ----------
+
+    // Keep in sync with MAX_NAME_LENGTH in src/lib/names.ts.
     function isValidName(name) {
       return name is string && name.trim().size() > 0 && name.size() <= 50;
     }
 
-    match /users/{uid} {
-      allow read: if isOwner(uid);
+    function isSchoolEmail(email) {
+      return email is string
+        && email == email.lower()
+        && email.matches('^[^@]+@(student[.])?ccc[.]edu$');
+    }
 
+    function isStringList(value) {
+      return value is list && value.size() <= 50;
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function changedKeys() {
+      return request.resource.data.diff(resource.data).affectedKeys();
+    }
+
+    // ---------- users ----------
+
+    match /users/{uid} {
+      // Any active account can fetch one profile by ID (names for the
+      // client-side join); only users.view can list everyone.
+      allow get: if isOwner(uid) || isActive();
+      allow list: if can('users.view');
+
+      // Self sign-up: own doc only, created pending (no roles or permissions,
+      // no memberships).
       allow create: if isMember()
         && isOwner(uid)
-        && request.resource.data.keys().hasOnly([
-          'firstName', 'lastName', 'email', 'classIds', 'roleIds',
-          'permissions', 'createdAt', 'updatedAt', 'deletedAt'
+        && incoming().keys().hasOnly([
+          'firstName', 'lastName', 'email', 'roleIds', 'permissions',
+          'createdAt', 'updatedAt', 'deletedAt'
         ])
-        && isValidName(request.resource.data.firstName)
-        && isValidName(request.resource.data.lastName)
-        && request.resource.data.email == request.auth.token.email.lower()
-        && request.resource.data.classIds == []
-        && request.resource.data.roleIds == []
-        && request.resource.data.permissions == []
-        && request.resource.data.createdAt == request.time
-        && request.resource.data.updatedAt == request.time
-        && request.resource.data.deletedAt == null;
+        && isValidName(incoming().firstName)
+        && isValidName(incoming().lastName)
+        && incoming().email == request.auth.token.email.lower()
+        && incoming().roleIds == []
+        && incoming().permissions == []
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && incoming().deletedAt == null;
 
+      // Admin-created account (memberships are written in the same batch).
+      // No privilege escalation: you can only grant permissions you hold.
+      allow create: if can('users.manage')
+        && !isOwner(uid)
+        && incoming().keys().hasOnly([
+          'firstName', 'lastName', 'email', 'roleIds', 'permissions',
+          'createdAt', 'updatedAt', 'deletedAt'
+        ])
+        && isValidName(incoming().firstName)
+        && isValidName(incoming().lastName)
+        && isSchoolEmail(incoming().email)
+        && isStringList(incoming().roleIds)
+        && isStringList(incoming().permissions)
+        && incoming().permissions.hasOnly(me().permissions)
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && incoming().deletedAt == null;
+
+      // Self-update: names only, and not while deactivated.
       allow update: if isMember()
         && isOwner(uid)
         && resource.data.deletedAt == null
-        && request.resource.data.diff(resource.data).affectedKeys()
-          .hasOnly(['firstName', 'lastName', 'updatedAt'])
-        && isValidName(request.resource.data.firstName)
-        && isValidName(request.resource.data.lastName)
-        && request.resource.data.updatedAt == request.time;
+        && changedKeys().hasOnly(['firstName', 'lastName', 'updatedAt'])
+        && isValidName(incoming().firstName)
+        && isValidName(incoming().lastName)
+        && incoming().updatedAt == request.time;
+
+      // Admin update: names, app-wide roles + permissions, deactivate/restore.
+      allow update: if can('users.manage')
+        && changedKeys().hasOnly([
+          'firstName', 'lastName', 'roleIds', 'permissions', 'updatedAt',
+          'deletedAt'
+        ])
+        && isValidName(incoming().firstName)
+        && isValidName(incoming().lastName)
+        && isStringList(incoming().roleIds)
+        && isStringList(incoming().permissions)
+        && (!('permissions' in changedKeys())
+          || incoming().permissions.hasOnly(me().permissions))
+        && (!('deletedAt' in changedKeys())
+          || (!isOwner(uid)
+            && (incoming().deletedAt == null || incoming().deletedAt == request.time)))
+        && incoming().updatedAt == request.time;
+
+      allow delete: if false;
     }
 
-    match /userContacts/{uid} {
-      allow read: if isOwner(uid);
+    // ---------- private contact info ----------
 
+    match /userContacts/{uid} {
+      allow read: if isOwner(uid) || can('users.view');
+
+      // Only the owner writes it, so SMS consent always comes from the student.
       allow create, update: if isMember()
         && isOwner(uid)
-        && request.resource.data.keys().hasOnly(['phone', 'smsOptIn', 'smsOptInAt', 'updatedAt'])
-        && request.resource.data.keys().hasAll(['phone', 'smsOptIn', 'smsOptInAt', 'updatedAt'])
-        && request.resource.data.phone is string
-        && (request.resource.data.phone == ''
-          || request.resource.data.phone.matches('^[+][1-9][0-9]{7,14}$'))
-        && request.resource.data.smsOptIn is bool
-        && ((request.resource.data.smsOptIn == true
-            && request.resource.data.phone != ''
-            && request.resource.data.smsOptInAt is timestamp)
-          || (request.resource.data.smsOptIn == false
-            && request.resource.data.smsOptInAt == null))
-        && request.resource.data.updatedAt == request.time;
+        && (!exists(myPath()) || me().deletedAt == null)
+        && incoming().keys().hasOnly(['phone', 'smsOptIn', 'smsOptInAt', 'updatedAt'])
+        && incoming().keys().hasAll(['phone', 'smsOptIn', 'smsOptInAt', 'updatedAt'])
+        && incoming().phone is string
+        && (incoming().phone == ''
+          || incoming().phone.matches('^[+][1-9][0-9]{7,14}$'))
+        && incoming().smsOptIn is bool
+        && ((incoming().smsOptIn == true
+            && incoming().phone != ''
+            && incoming().smsOptInAt is timestamp)
+          || (incoming().smsOptIn == false
+            && incoming().smsOptInAt == null))
+        && incoming().updatedAt == request.time;
+
+      allow delete: if false;
+    }
+
+    // ---------- classes (archived, never deleted) ----------
+
+    function isValidClass(data) {
+      return data.keys().hasOnly([
+          'name', 'startYear', 'endYear', 'archivedAt', 'createdAt', 'updatedAt'
+        ])
+        && data.name is string
+        && data.name.trim().size() > 0
+        && data.name.size() <= 80
+        && data.startYear is int
+        && data.startYear >= 2000
+        && data.startYear <= 2100
+        && (data.endYear == null
+          || (data.endYear is int && data.endYear >= data.startYear && data.endYear <= 2100));
+    }
+
+    // "My classes" and the admin members list are collection-group queries
+    // over every class's members subcollection. Queries must filter on
+    // userId == my uid unless the reader has users.view.
+    match /{path=**}/members/{memberId} {
+      allow read: if (isActive() && resource.data.userId == request.auth.uid)
+        || can('users.view');
+    }
+
+    match /classes/{classId} {
+      allow read: if isActive();
+
+      // Pivot row: one per person per class, doc ID = uid. Roles are per
+      // class; permissions is the stored copy of those roles' class
+      // permissions. Removing someone from a class deletes the row.
+      match /members/{memberId} {
+        allow read: if inClass(classId) || can('users.view');
+
+        allow create: if can('users.manage')
+          && incoming().keys().hasOnly([
+            'userId', 'roleIds', 'permissions', 'createdAt', 'updatedAt'
+          ])
+          && incoming().userId == memberId
+          // Foreign keys. existsAfter: an admin-created user is written in
+          // the same batch as their memberships.
+          && exists(/databases/$(database)/documents/classes/$(classId))
+          && existsAfter(/databases/$(database)/documents/users/$(memberId))
+          && isStringList(incoming().roleIds)
+          && isStringList(incoming().permissions)
+          && incoming().permissions.hasOnly(me().permissions)
+          && incoming().createdAt == request.time
+          && incoming().updatedAt == request.time;
+
+        allow update: if can('users.manage')
+          && changedKeys().hasOnly(['roleIds', 'permissions', 'updatedAt'])
+          && isStringList(incoming().roleIds)
+          && isStringList(incoming().permissions)
+          && incoming().permissions.hasOnly(me().permissions)
+          && incoming().updatedAt == request.time;
+
+        allow delete: if can('users.manage');
+      }
+
+      allow create: if can('classes.manage')
+        && isValidClass(incoming())
+        && incoming().archivedAt == null
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+
+      allow update: if can('classes.manage')
+        && isValidClass(incoming())
+        && incoming().createdAt == resource.data.createdAt
+        && (!('archivedAt' in changedKeys())
+          || incoming().archivedAt == null
+          || incoming().archivedAt == request.time)
+        && incoming().updatedAt == request.time;
+
+      allow delete: if false;
+    }
+
+    // ---------- roles (master/reference table) ----------
+
+    match /roles/{roleId} {
+      allow read: if isActive();
+
+      // The role editor arrives in Phase 5; seed roles are created by hand.
+      allow create, update: if can('roles.manage')
+        && incoming().keys().hasOnly(['name', 'color', 'permissions', 'createdAt', 'updatedAt'])
+        && incoming().name is string
+        && incoming().name.trim().size() > 0
+        && incoming().name.size() <= 40
+        && incoming().color is string
+        && incoming().color.matches('^#[0-9a-fA-F]{6}$')
+        && isStringList(incoming().permissions)
+        && incoming().updatedAt == request.time;
+
+      allow delete: if false;
     }
   }
 }

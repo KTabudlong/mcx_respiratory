@@ -26,3 +26,10 @@ export function toE164(input: string) {
 
     return null;
 }
+
+// Displays US numbers as (312) 555-1234; other numbers stay in E.164.
+export function formatPhone(e164: string) {
+    const match = /^\+1(\d{3})(\d{3})(\d{4})$/.exec(e164);
+
+    return match ? `(${match[1]}) ${match[2]}-${match[3]}` : e164;
+}

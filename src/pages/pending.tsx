@@ -1,5 +1,6 @@
 import { Navigate } from 'react-router';
 
+import { AdminLink } from '@/components/auth/admin-link';
 import { Button } from '@/components/ui/button';
 import {
     Card,
@@ -15,9 +16,9 @@ import { logOut } from '@/lib/auth';
 // The profile listener is live, so this page moves on by itself as soon as
 // an admin assigns a class.
 export default function Pending() {
-    const { profile } = useAuth();
+    const { profile, memberships } = useAuth();
 
-    if (isApproved(profile)) {
+    if (isApproved(profile, memberships.length)) {
         return <Navigate to="/" replace />;
     }
 
@@ -54,6 +55,7 @@ export default function Pending() {
                         This page updates by itself once you're approved.
                     </p>
                 )}
+                <AdminLink />
                 <Button variant="outline" onClick={() => logOut()}>
                     Log out
                 </Button>

@@ -37,10 +37,21 @@ export function getSignupStep({
     return 'done';
 }
 
-export function isApproved(profile: UserProfile | null) {
-    return (
-        profile !== null &&
-        profile.deletedAt === null &&
-        profile.classIds.length > 0
-    );
+export type UserStatus = 'active' | 'pending' | 'deactivated';
+
+// Pending = in no class and no app-wide role (app-wide roles apply in every
+// class).
+export function getUserStatus(
+    profile: UserProfile,
+    classCount: number,
+): UserStatus {
+    if (profile.deletedAt !== null) {
+        return 'deactivated';
+    }
+
+    return classCount > 0 || profile.roleIds.length > 0 ? 'active' : 'pending';
+}
+
+export function isApproved(profile: UserProfile | null, classCount: number) {
+    return profile !== null && getUserStatus(profile, classCount) === 'active';
 }

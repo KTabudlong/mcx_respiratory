@@ -79,7 +79,14 @@
 
 ### Last session
 
-**2026-10-08 (session 3) — Planning only: data model, two-UI design, React rules, Firebase MCP (no app code)**
+**2026-10-08 (session 3) — Planning, then Phase 1 (auth) and Phase 2 (rules, roles, admin panel)**
+
+- **Phase 1 done + tested:** stepper sign-up, login/logout/forgot password, `/pending`, route guards. Verified with `ktabudlong@student.ccc.edu`.
+- **Phase 2 built:** full `firestore.rules` for `users` / `userContacts` / `classes` / `roles` (deployed); roles seeded; that account is now the first admin. Lazy-loaded admin panel at `/#/admin` (`admin-layout`, sidebar filtered by permission) with a **classes table** (add/edit/archive) and a **users table** (search by first/last name, status filter, add user via second app instance + set-password email, edit, approve, assign classes/roles, deactivate/restore). Student role can create posts (user's choice). Firestore hooks `use-document` / `use-collection`; plain logic in `src/lib/` with Vitest tests (30 passing).
+- **Admin landing:** users with admin permissions land on `/admin` after login; the admin header's "Open board" opens `/` in a new tab. User chose to keep hash URLs.
+- **Class is the anchor (user decision):** `classes/{classId}/members/{uid}` pivot (one doc per person per class) replaces `users.classIds`; **roles are per class** (on the membership, class permissions only) and `users.roleIds` are **app-wide roles** (apply in every class + admin panel); posts/comments will live at `classes/{classId}/posts/{postId}/comments/{id}`. Pending = no memberships and no app-wide roles. New: `use-memberships` (collection-group queries), `lib/memberships` (pivot diff), `class-roles-field`, `canIn()` in auth context.
+- **Per-class roles DESIGNED, NOT BUILT** (end of session; plan § Data model, § Authorization rules, § Admin panel): super admin (`admins/{uid}`) → class → **class-owned ranked roles** (`classes/{c}/roles`, one role per member, no permission copies); class permissions `admin.access`, `students.view`, `students.manage`, `roles.manage` + content; officers get a class-scoped admin panel (class switcher); students **pick their class at sign-up** (join request) and officers approve; officers can also create accounts; `users.createdBy` (null = self sign-up) and `members.addedBy`; **all classmates see phones** (copy on each membership). New classes start with Student + President.
+- **Not done:** the per-class roles build (ROADMAP Phase 2b). The interim model (global `roles`, `members.roleIds` + `permissions`, app-wide `users.roleIds`) is what's deployed. The user's manual `/admin` test is deferred until 2b. Posts/comments rules arrive with Phases 3–4. Admin-header breadcrumbs moved to Phase 5.
 
 - **Data model decided** (plan § Data model): `classes`, `roles/{slug}` (master table; permissions are code constants stored per role), `users/{uid}` (`classIds[]`, `roleIds[]`, derived `permissions[]`), private `userContacts/{uid}` (E.164 phone + SMS opt-in; separate doc because rules are per document), `posts` (`classId`, `userId`, embedded `links[{url,label}]`, `pinned`), `posts/{id}/comments` (threaded via `parentId`). camelCase fields; `createdAt`/`updatedAt` server timestamps; soft delete = `deletedAt` written as `null` on create. Author names joined client-side (no `authorName` copies); comment counts via `count()`.
 - **User decisions:** users can be in many classes; self-signed-up users are **pending** until an admin assigns class + roles; threaded comments kept; links embedded; **upvotes after launch**; app must stay a **single-page app**.
@@ -91,9 +98,10 @@
 ### Resume here
 
 1. (User) Commit on `dev`. Optional: delete the 5 unused env variables under GitHub **Settings → Environments → github-pages**.
-2. **Phase 1 code is done and the Phase 1 rules are deployed** (Firebase MCP signed in as `laotabudlong@gmail.com`, active project `mcx-respiratory`). Manual test passed with `ktabudlong@student.ccc.edu` (verification email delivered, profile saved, `/pending` shown). That account is the planned first admin.
-3. **Phase 2:** full `firestore.rules` (`isMember`, `isActive`, `can()`, `users.view`/`users.manage`, no privilege escalation), seed roles, first-admin steps, lazy-loaded admin shell, classes table, users table (search by first/last name, admin-created accounts via second app instance + set-password email, approve pending, soft delete/restore).
-4. Bundle is ~923 kB (Firestore SDK + auth screens); admin panel will be lazy-loaded starting Phase 2.
+2. **Phase 2b — build per-class roles** from the plan (ROADMAP § Phase 2b checklist). Start with the rules (validate with the MCP), then types/helpers + tests, sign-up class picker + join requests, class switcher, Students and Roles pages, super admin Classes/Users pages. Ask before deploying rules or changing production data (create `admins/lWLOvCyPTPeAazxpfMrRCKlM9ik2`, drop global `roles` and interim user fields).
+3. Open detail to settle at build time: how the users-create rule proves an officer-created account belongs to their class (e.g. check `existsAfter` on the membership in the same batch via a class ID on the request).
+4. **Phase 3 — posts** at `classes/{classId}/posts`: Reddit-style `board-layout` (class switcher from memberships), feed, create/edit/delete/pin, plus posts rules (re-add `canIn(classId, permission)` to the rules).
+5. Main bundle is ~928 kB (Firebase SDK); the admin panel is already split out (~90 kB). Revisit chunking if load time matters.
 
 ### Caveats
 
@@ -103,4 +111,6 @@
 - `npx shadcn add …` writes `import { cn } from "cn"` (TS 6 has no `baseUrl`) — fix to `@/lib/utils` after each add.
 - Laragon's `.test` URL won't work for this project; always use `npm run dev`.
 - Firebase MCP has no emulator behind it yet — every write hits **production**. Ask the user first.
-- Until the Phase 2 users table, pending users are approved by hand (Firebase console, or MCP with the user's OK).
+- **First admin (interim model, until Phase 2b):** edit `users/{uid}`: `roleIds: ["admin"]` and `permissions` = every key in `roles/admin`. **After 2b:** create `admins/{uid}` by hand (console or MCP with the user's OK).
+- Interim model only: `users.permissions` / `members.permissions` are copies of role permissions. Phase 2b removes them (one role per member, rules read the role directly).
+- Firebase MCP read-back quirk: `firestore_update_document` / `firestore_get_document` error on fields that are `null` (e.g. `deletedAt`) even when the write succeeded. Pass a `mask` that skips null fields when reading.
