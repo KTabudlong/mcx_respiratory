@@ -8,6 +8,14 @@
                 { "fieldPath": "pinned", "order": "DESCENDING" },
                 { "fieldPath": "createdAt", "order": "DESCENDING" }
             ]
+        },
+        {
+            "collectionGroup": "comments",
+            "queryScope": "COLLECTION",
+            "fields": [
+                { "fieldPath": "deletedAt", "order": "ASCENDING" },
+                { "fieldPath": "createdAt", "order": "ASCENDING" }
+            ]
         }
     ],
     "fieldOverrides": [

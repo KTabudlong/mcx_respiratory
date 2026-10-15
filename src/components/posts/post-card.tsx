@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { Link } from 'react-router';
 
+import { CommentCountLink } from '@/components/posts/comment-count-link';
 import { LinkChips } from '@/components/posts/link-chips';
 import { PostMeta } from '@/components/posts/post-meta';
 import { cn } from '@/lib/utils';
@@ -42,6 +43,7 @@ export function PostCard({
                 </p>
             )}
             <LinkChips links={post.links} />
+            <CommentCountLink post={post} />
         </article>
     );
 }

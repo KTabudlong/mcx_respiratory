@@ -81,6 +81,23 @@ export type Post = {
     deletedAt: Timestamp | null;
 };
 
+// classes/{classId}/posts/{postId}/comments/{commentId} — soft-deleted.
+// `parentId` is the self foreign key (null = top-level); `ancestorIds` is the
+// path from the top-level comment down to the parent. `classId` comes from
+// the path; `postId` too (see docData).
+export type Comment = {
+    id: string;
+    classId: string;
+    postId: string;
+    userId: string;
+    parentId: string | null;
+    ancestorIds: string[];
+    body: string;
+    createdAt: Timestamp;
+    updatedAt: Timestamp;
+    deletedAt: Timestamp | null;
+};
+
 // userContacts/{uid} — private source of truth for the phone + SMS consent:
 // only the owner and super admins can read it.
 export type UserContact = {

@@ -6,8 +6,6 @@ rules_version = '2';
 // Hierarchy: super admin (admins/{uid}) → class → the class's own roles.
 // Everything a person can do inside a class comes from their one role in
 // that class (classes/{c}/members/{uid}.roleId → classes/{c}/roles/{roleId}).
-// Comments rules arrive with Phase 4; until then that subcollection stays
-// locked.
 service cloud.firestore {
   match /databases/{database}/documents {
 
@@ -466,6 +464,83 @@ service cloud.firestore {
           && incoming().updatedAt == request.time;
 
         allow delete: if false;
+
+        // ----- threaded comments (soft-deleted, never hard-deleted) -----
+        //
+        // parentId is the self foreign key; ancestorIds is the materialized
+        // path (root first), so replies under a deleted comment still render
+        // in place and the depth limit (5 levels) is enforced here.
+        match /comments/{commentId} {
+          function commentPath(id) {
+            return /databases/$(database)/documents/classes/$(classId)/posts/$(postId)/comments/$(id);
+          }
+
+          function isCommentAuthor() {
+            return resource.data.userId == request.auth.uid;
+          }
+
+          function isValidBody(body) {
+            return body is string && body.trim().size() > 0 && body.size() <= 5000;
+          }
+
+          function hasValidParent(data) {
+            return data.ancestorIds is list
+              && data.ancestorIds.size() <= 4
+              && ((data.parentId == null && data.ancestorIds.size() == 0)
+                || (data.parentId is string
+                  && data.ancestorIds.size() > 0
+                  && get(commentPath(data.parentId)).data.deletedAt == null
+                  && get(commentPath(data.parentId)).data.ancestorIds.concat([data.parentId]) == data.ancestorIds));
+          }
+
+          // Board queries filter deletedAt == null; deleted comments are
+          // visible to their author and moderators only.
+          allow read: if inClass(classId)
+            && (resource.data.deletedAt == null
+              || isCommentAuthor()
+              || canIn(classId, 'comments.delete_any'));
+
+          // Anyone in the class comments as themselves on a live post.
+          allow create: if inClass(classId)
+            && classIsOpen()
+            && get(/databases/$(database)/documents/classes/$(classId)/posts/$(postId)).data.deletedAt == null
+            && incoming().keys().hasOnly([
+              'userId', 'parentId', 'ancestorIds', 'body',
+              'createdAt', 'updatedAt', 'deletedAt'
+            ])
+            && incoming().userId == request.auth.uid
+            && isValidBody(incoming().body)
+            && hasValidParent(incoming())
+            && incoming().createdAt == request.time
+            && incoming().updatedAt == request.time
+            && incoming().deletedAt == null;
+
+          // Edit: the author only, still in the class.
+          allow update: if resource.data.deletedAt == null
+            && isCommentAuthor()
+            && inClass(classId)
+            && classIsOpen()
+            && changedKeys().hasOnly(['body', 'updatedAt'])
+            && isValidBody(incoming().body)
+            && incoming().updatedAt == request.time;
+
+          // Soft delete: the author (still in the class) or comments.delete_any.
+          allow update: if resource.data.deletedAt == null
+            && ((isCommentAuthor() && inClass(classId))
+              || canIn(classId, 'comments.delete_any'))
+            && changedKeys().hasOnly(['deletedAt', 'updatedAt'])
+            && incoming().deletedAt == request.time
+            && incoming().updatedAt == request.time;
+
+          // Restore: moderators only.
+          allow update: if resource.data.deletedAt != null
+            && canIn(classId, 'comments.delete_any')
+            && changedKeys().hasOnly(['deletedAt', 'updatedAt'])
+            && incoming().deletedAt == null
+            && incoming().updatedAt == request.time;
+
+          allow delete: if false;
+        }
       }
     }
   }

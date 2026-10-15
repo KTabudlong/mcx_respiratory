@@ -1,4 +1,4 @@
-import type { ClassRole, Post } from '@/types';
+import type { ClassRole, Comment, Post } from '@/types';
 
 // Class permissions are code constants, not data: each one only works once
 // the app and firestore.rules check it. Each class's roles store a list of
@@ -98,5 +98,24 @@ export function postAbilities(
             (isAuthor || hasClassPermission(access, 'posts.edit_any')),
         canPin: classOpen && hasClassPermission(access, 'posts.pin'),
         canDelete: isAuthor || hasClassPermission(access, 'posts.delete_any'),
+    };
+}
+
+// Mirrors the comments rules: anyone in the class replies (up to the depth
+// limit), only the author edits, the author or comments.delete_any deletes.
+export function commentAbilities(
+    comment: Pick<Comment, 'userId' | 'ancestorIds'>,
+    userId: string | undefined,
+    access: ClassAccess,
+    classOpen: boolean,
+    maxDepth: number,
+) {
+    const isAuthor = comment.userId === userId;
+
+    return {
+        canReply: classOpen && comment.ancestorIds.length < maxDepth,
+        canEdit: classOpen && isAuthor,
+        canDelete:
+            isAuthor || hasClassPermission(access, 'comments.delete_any'),
     };
 }

@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import type { ClassAccess } from '@/lib/permissions';
 import {
     assignableRoles,
+    commentAbilities,
     defaultRole,
     grantablePermissions,
     hasClassPermission,
@@ -145,5 +146,46 @@ describe('postAbilities', () => {
             canPin: false,
             canDelete: true,
         });
+    });
+});
+
+describe('commentAbilities', () => {
+    const asStudent: ClassAccess = { isSuperAdmin: false, role: student };
+    const moderator: ClassAccess = {
+        isSuperAdmin: false,
+        role: makeRole('mod', 60, ['comments.delete_any']),
+    };
+    const comment = { userId: 'me', ancestorIds: ['a', 'b'] };
+
+    it('lets the author edit and delete; anyone may reply', () => {
+        expect(commentAbilities(comment, 'me', asStudent, true, 4)).toEqual({
+            canReply: true,
+            canEdit: true,
+            canDelete: true,
+        });
+        expect(commentAbilities(comment, 'x', asStudent, true, 4)).toEqual({
+            canReply: true,
+            canEdit: false,
+            canDelete: false,
+        });
+    });
+
+    it('lets moderators delete but never edit others', () => {
+        expect(commentAbilities(comment, 'x', moderator, true, 4)).toEqual({
+            canReply: true,
+            canEdit: false,
+            canDelete: true,
+        });
+    });
+
+    it('stops replies at the depth limit and in archived classes', () => {
+        const deep = { userId: 'me', ancestorIds: ['a', 'b', 'c', 'd'] };
+
+        expect(commentAbilities(deep, 'me', asStudent, true, 4).canReply).toBe(
+            false,
+        );
+        expect(
+            commentAbilities(comment, 'me', asStudent, false, 4),
+        ).toMatchObject({ canReply: false, canEdit: false });
     });
 });

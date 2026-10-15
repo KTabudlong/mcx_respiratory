@@ -216,9 +216,11 @@ userContacts/{uid}               1:1 with users, private (SMS consent)
 - `classes/{classId}/posts/{postId}`: `{ userId, title, body, links: { url, label }[], pinned, createdAt, updatedAt, deletedAt }`
   - Belongs to its class by path; exactly one author (`userId`).
   - `links` is embedded (max ~10): files live in external apps (Drive, OneDrive, Cloudinary later) and the post only references them. Links are never queried alone, so a subcollection would only add one read per post in the feed.
-- `classes/{classId}/posts/{postId}/comments/{commentId}`: `{ userId, parentId | null, body, createdAt, updatedAt, deletedAt }`
+- `classes/{classId}/posts/{postId}/comments/{commentId}`: `{ userId, parentId | null, ancestorIds: string[], body, createdAt, updatedAt, deletedAt }`
   - Class and post come from the path, so rules check membership without reading the post. "All posts/comments by a user" or admin moderation tables use collection-group queries.
-  - Threaded replies: the client builds the reply tree from `parentId` (depth limit 5). Soft-deleted comments show as "[deleted]" so their replies stay in place, like Reddit.
+  - `parentId` is the self foreign key; `ancestorIds` is the materialized path (top-level comment first, parent last). The rules check it equals the parent's `ancestorIds` + `parentId` and cap its length at 4, so the 5-level depth limit is enforced server-side.
+  - Threaded replies: the client builds the tree from `ancestorIds`. The board query skips soft-deleted comments (so their text stays private: readable only by the author and `comments.delete_any`), and a reply whose ancestor is missing renders under a "[deleted]" placeholder in the right spot, like Reddit.
+  - "Edited" = `updatedAt` later than `createdAt` (comments only change when edited).
 
 **Joins and counts (stay normalized at class size):**
 

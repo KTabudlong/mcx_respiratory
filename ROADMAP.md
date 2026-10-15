@@ -28,7 +28,7 @@
 
 **Planning last reviewed:** 2026-10-08
 
-**Current milestone:** Phase 2b — per-class roles built and deployed; your manual test next, then Phase 3 (posts).
+**Current milestone:** Phases 2b, 3 and 4 built and deployed (per-class roles, board + posts, threaded comments); manual testing pending. Next: Phase 5 (rest of the admin panel).
 
 ### Planning — data model + UI ✅ 2026-10-08
 
@@ -92,7 +92,12 @@
 
 ### Phase 4 — Threaded comments (days 15–18)
 
-- [ ] Comment / reply / edit / soft delete; moderator delete; depth limit; counts
+- [x] Comment / reply / edit / soft delete; moderator delete (`comments.delete_any`); collapse threads; "[deleted]" placeholders keep replies in place
+- [x] Depth limit 5 levels, enforced in the rules via `ancestorIds` (materialized path)
+- [x] Counts: feed cards use Firestore `count()`; the post page counts the live thread
+- [x] Comments rules + index (`deletedAt`, `createdAt`), validated
+- [x] Deploy comments rules + index, 2026-10-15
+- [ ] (User) Manual test: comment, reply 5 levels deep, edit, delete a comment that has replies, delete someone else's as a moderator role
 
 ### Phase 5 — Rest of the CRM admin panel (days 19–22)
 

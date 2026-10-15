@@ -2,6 +2,7 @@ import { ArrowLeft } from 'lucide-react';
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 
+import { PostComments } from '@/components/comments/post-comments';
 import { FormMessage } from '@/components/common/form-message';
 import { PageLoader } from '@/components/common/page-loader';
 import { LinkChips } from '@/components/posts/link-chips';
@@ -95,9 +96,10 @@ export default function PostShow() {
             {author.error && (
                 <FormMessage message={getErrorMessage(author.error)} />
             )}
-            <p className="text-center text-sm text-muted-foreground">
-                Comments arrive in the next update.
-            </p>
+            <PostComments
+                post={post.data}
+                classOpen={classGroup.data?.archivedAt === null}
+            />
         </div>
     );
 }
