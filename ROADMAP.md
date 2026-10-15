@@ -79,7 +79,15 @@
 - [x] Admin shell: class switcher (classes with `admin.access`), super admin sections
 - [x] Class pages: Students (roster with phones, join requests, invite, change role, remove), Roles (rank, color, permission checkboxes)
 - [x] Super admin pages: Classes (create with the default Student role), Users (deactivate/restore, invited by)
-- [ ] (User) Manual test: create class, add President + Treasurer roles, invite a President, sign up a test student who picks the class, approve as President, give Treasurer `admin.access` + `students.view` without `students.manage`
+- [ ] (User) Manual test (run `npm run dev`; use incognito / a second browser profile for other accounts; needs extra real `@student.ccc.edu` / `@ccc.edu` addresses):
+  - [ ] Super admin: create a test class → it starts with only a Student role
+  - [ ] Roles page: add President (high rank; `admin.access`, `students.view`, `students.manage`) and Treasurer (lower rank; `admin.access`, `students.view` only)
+  - [ ] Students page: invite a second address as President → set password from the email → log in
+  - [ ] Sign up a third address and pick the class → `/pending` shows the request; cancel and re-request work
+  - [ ] As President: approve the request → person appears in the roster with their phone (if given)
+  - [ ] As President: roles at or above President aren't offered when changing someone's role
+  - [ ] As Treasurer: roster visible, but no invite / approve / change role / remove
+  - [ ] Remove a member → they lose access to the class; their account stays
 
 ### Phase 3 — Posts (days 11–14)
 
@@ -88,7 +96,12 @@
 - [x] Loading, empty, error states; archived classes are read-only
 - [x] Posts rules + feed index (`deletedAt`, `pinned` desc, `createdAt` desc)
 - [x] Deploy posts rules + index, 2026-10-15
-- [ ] (User) Manual test: post as a student, edit/delete own post, pin and delete someone else's as a moderator role, archived class is read-only
+- [ ] (User) Manual test:
+  - [ ] As a student: create a post with body + 2 links (a link without `https://` gets it added)
+  - [ ] Edit own post; delete own post → gone from the feed
+  - [ ] With a role that has `posts.pin` + `posts.delete_any`: pin someone else's post (moves to top), delete it
+  - [ ] Feed search filters by title; "Load more" appears past 20 posts
+  - [ ] Archive the class (super admin) → board is read-only (no new posts / edits)
 
 ### Phase 4 — Threaded comments (days 15–18)
 
@@ -97,7 +110,12 @@
 - [x] Counts: feed cards use Firestore `count()`; the post page counts the live thread
 - [x] Comments rules + index (`deletedAt`, `createdAt`), validated
 - [x] Deploy comments rules + index, 2026-10-15
-- [ ] (User) Manual test: comment, reply 5 levels deep, edit, delete a comment that has replies, delete someone else's as a moderator role
+- [ ] (User) Manual test:
+  - [ ] Comment on a post; reply until replies stop being offered (5 levels)
+  - [ ] Edit a comment; collapse / expand a thread
+  - [ ] Delete a comment that has replies → shows "[deleted]", replies stay in place
+  - [ ] With a `comments.delete_any` role: delete someone else's comment
+  - [ ] Comment count on the feed card matches
 
 ### Phase 5 — Rest of the CRM admin panel (days 19–22)
 
@@ -107,18 +125,45 @@
 - [x] Moderation page `/admin/classes/:classId/moderation` (`posts.delete_any` or `comments.delete_any`): all / live / deleted posts, delete + restore, expand a post for its comments (delete + restore)
 - [x] Rules + indexes for the user page: super admin collection-group reads of `posts` / `comments`; `posts` (`userId`, `createdAt` desc) group index; `posts.userId` / `comments.userId` group overrides; validated
 - [x] Deploy the user-page rules + indexes, 2026-10-15
-- [ ] (User) Manual test: dashboards, breadcrumbs, email selected, user page, moderation delete/restore as a moderator role
+- [ ] (User) Manual test:
+  - [ ] `/admin` and class overview numbers match reality; cards link to the right pages
+  - [ ] Breadcrumbs correct (phone width shows only the current page); header "Open board" opens the class board
+  - [ ] Moderation: All / Live / Deleted filter + title search; delete + restore a post (board updates); expand a post, delete + restore a comment
+  - [ ] Role with only `comments.delete_any`: Moderation shows live posts only, no post delete / restore
+  - [ ] Students: select a few → "Email (BCC)", "Copy addresses", "Clear"; header checkbox selects everyone matching the search
+  - [ ] User page (from All users): profile, phone, classes + roles, recent posts ("Deleted" badge on deleted ones)
+  - [ ] Non-super admin: `/admin/users/...` and All classes show no access
 
 ### Phase 6 — Polish + launch (days 23–25)
 
 - [ ] Install Java 21 (winget); emulator + automated rules tests
 - [ ] Mobile + accessibility pass; invite the class
 
+### Phase 5b — Rich text, photos, texting (built 2026-10-15 on `dev`)
+
+User decisions: gallery (not inline) photos, max 3 per post; quotes + divider, no tables; text batches of 30; messaging is a role permission.
+
+- [x] Rich-text posts (Tiptap free core): bold, italic, heading, subheading, lists, quote, divider, link, undo/redo; saved as HTML (`format: 'html'`), sanitized with DOMPurify on every render; old plain-text posts still render and convert when edited; editor is its own lazy chunk; body limit 20,000 (HTML); comments stay plain text
+- [x] Photo gallery: up to 3 per post, shrunk in the browser (≤1600 px, WebP/JPEG, ≤450 KB) and stored as Firestore bytes in `posts/{p}/images/{id}`; feed shows a photo count only; tap a photo for full size
+- [x] New class permission `students.message` ("Email and text selected students") gates roster selection, Email (BCC) and Text
+- [x] "Text selected": `sms:` group text from the admin's phone, opted-in members with a phone only, batches of 30, optional message, "Copy numbers" / "Copy message" for computers; `smsOptIn` copied onto join requests + memberships
+- [x] Rules: post `format` / `imageIds` (≤3), images subcollection, `smsOptIn` copies; validated
+- [x] Deploy rules, 2026-10-15
+- [ ] (User) Manual test:
+  - [ ] Roles page: give a role "Email and text selected students"; without it, the roster has no checkboxes
+  - [ ] New post with heading, bold, list, quote, divider and a link; the post page shows the formatting; the feed card shows a plain-text preview
+  - [ ] Edit an older plain-text post: text carries over, saves as rich text
+  - [ ] Add 3 photos (a phone photo too); the 4th is refused; the post page gallery opens full size; edit to remove one / add one
+  - [ ] Delete a post with photos as a moderator → photos hidden; restore → back
+  - [ ] Profile save with SMS opt-in → membership gets the opt-in; Text dialog lists only opted-in members with phones, skipped names shown
+  - [ ] Android phone: "Open in Messages" opens a group text with the numbers and message; on PC: "Copy numbers" into Google Messages for web / Phone Link
+
 ---
 
 ## Blocked / waiting
 
-- Nothing blocking. (Optional user cleanup: delete unused environment variables under GitHub Settings → Environments → `github-pages`.)
+- Nothing blocking. Unused GitHub environment variables cleaned up (user, 2026-10-15).
+- `dev` pushed; merge to `main` waits until the user finishes the Phase 2b–5 manual tests.
 
 ---
 

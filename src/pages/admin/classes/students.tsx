@@ -4,11 +4,12 @@ import { useParams } from 'react-router';
 
 import { AddMemberDialog } from '@/components/admin/add-member-dialog';
 import { ClassPageHeader } from '@/components/admin/class-page-header';
-import { EmailSelectedBar } from '@/components/admin/email-selected-bar';
 import { InviteMemberDialog } from '@/components/admin/invite-member-dialog';
 import { JoinRequestsList } from '@/components/admin/join-requests-list';
 import type { MemberRow } from '@/components/admin/members-table';
 import { MembersTable } from '@/components/admin/members-table';
+import { SelectedMembersBar } from '@/components/admin/selected-members-bar';
+import { TextSelectedDialog } from '@/components/admin/text-selected-dialog';
 import { ConfirmDialog } from '@/components/common/confirm-dialog';
 import { FormMessage } from '@/components/common/form-message';
 import { PageLoader } from '@/components/common/page-loader';
@@ -33,6 +34,7 @@ type DialogState =
     | { type: 'invite' }
     | { type: 'add-existing' }
     | { type: 'remove'; row: MemberRow }
+    | { type: 'text' }
     | null;
 
 // /admin/classes/:classId/students — students.view or students.manage
@@ -43,6 +45,7 @@ export default function ClassStudents() {
     const { user: me, accessIn } = useAuth();
     const access = accessIn(classId);
     const canManage = hasClassPermission(access, 'students.manage');
+    const canMessage = hasClassPermission(access, 'students.message');
 
     const members = useCollection<ClassMember>(`classes/${classId}/members`);
     const roles = useCollection<ClassRole>(`classes/${classId}/roles`);
@@ -95,11 +98,24 @@ export default function ClassStudents() {
         (a, b) => a.createdAt.toMillis() - b.createdAt.toMillis(),
     );
     // Only people still in the class (a removed member drops out).
+    const selectedMembers = members.data
+        .filter((member) => selectedIds.has(member.userId))
+        .sort((a, b) => nameOf(a).localeCompare(nameOf(b)));
     const selectedEmails = uniqueEmails(
-        members.data
-            .filter((member) => selectedIds.has(member.userId))
-            .map((member) => userById.get(member.userId)?.email ?? ''),
+        selectedMembers.map(
+            (member) => userById.get(member.userId)?.email ?? '',
+        ),
     );
+    // Texts only go to people who gave a phone and opted in.
+    const textable = selectedMembers.filter(
+        (member) => member.phone !== '' && member.smsOptIn === true,
+    );
+
+    function nameOf(member: ClassMember) {
+        const user = userById.get(member.userId);
+
+        return user ? `${user.firstName} ${user.lastName}` : 'Unknown';
+    }
 
     function handleSelect(userIds: string[], selected: boolean) {
         setSelectedIds((current) => {
@@ -178,10 +194,12 @@ export default function ClassStudents() {
                         label="Search students by first or last name"
                     />
 
-                    {selectedEmails.length > 0 && (
-                        <EmailSelectedBar
+                    {canMessage && selectedMembers.length > 0 && (
+                        <SelectedMembersBar
                             key={selectedEmails.join(',')}
+                            selectedCount={selectedMembers.length}
                             emails={selectedEmails}
+                            onText={() => setDialog({ type: 'text' })}
                             onClear={() => setSelectedIds(new Set())}
                         />
                     )}
@@ -190,8 +208,8 @@ export default function ClassStudents() {
                         rows={rows}
                         assignableRoles={assignable}
                         currentUserId={me?.uid}
-                        selectedIds={selectedIds}
-                        onSelect={handleSelect}
+                        selectedIds={canMessage ? selectedIds : undefined}
+                        onSelect={canMessage ? handleSelect : undefined}
                         emptyMessage={
                             members.data.length === 0
                                 ? 'Nobody in this class yet.'
@@ -236,6 +254,19 @@ export default function ClassStudents() {
                     onConfirm={() =>
                         removeMember(classId, dialog.row.member.userId)
                     }
+                    onClose={() => setDialog(null)}
+                />
+            )}
+            {dialog?.type === 'text' && (
+                <TextSelectedDialog
+                    recipients={textable.map((member) => ({
+                        userId: member.userId,
+                        name: nameOf(member),
+                        phone: member.phone,
+                    }))}
+                    skippedNames={selectedMembers
+                        .filter((member) => !textable.includes(member))
+                        .map(nameOf)}
                     onClose={() => setDialog(null)}
                 />
             )}

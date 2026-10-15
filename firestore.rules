@@ -124,6 +124,12 @@ service cloud.firestore {
       return getAfter(docPath('userContacts', request.auth.uid)).data.phone;
     }
 
+    // Same for the SMS consent copy ("Text selected" only texts opted-in
+    // members). Consent can't be granted by anyone but the student.
+    function mySmsOptInAfter() {
+      return getAfter(docPath('userContacts', request.auth.uid)).data.smsOptIn;
+    }
+
     // ---------- super admins ----------
 
     match /admins/{uid} {
@@ -335,12 +341,18 @@ service cloud.firestore {
 
         // Approve a join request or add someone. Foreign keys: class, user
         // (existsAfter: invited accounts are created in the same batch) and
-        // role. The phone is '' or copied from their join request or their
-        // contact doc (super admins adding an existing account).
+        // role. Phone and SMS consent are empty / false or copied from their
+        // join request or their contact doc (super admins adding an existing
+        // account).
         allow create: if canIn(classId, 'students.manage')
           && incoming().keys().hasOnly([
-            'userId', 'roleId', 'phone', 'addedBy', 'createdAt', 'updatedAt'
+            'userId', 'roleId', 'phone', 'smsOptIn', 'addedBy', 'createdAt', 'updatedAt'
           ])
+          && incoming().get('smsOptIn', false) is bool
+          && (incoming().get('smsOptIn', false) == false
+            || (incoming().smsOptIn == true
+              && (get(/databases/$(database)/documents/classes/$(classId)/joinRequests/$(memberId)).data.get('smsOptIn', false) == true
+                || get(docPath('userContacts', memberId)).data.smsOptIn == true)))
           && incoming().userId == memberId
           && incoming().addedBy == request.auth.uid
           && exists(/databases/$(database)/documents/classes/$(classId))
@@ -362,11 +374,14 @@ service cloud.firestore {
           && outranks(classId, roleRank(classId, incoming().roleId))
           && incoming().updatedAt == request.time;
 
-        // The member keeps their own phone copy in sync with userContacts.
+        // The member keeps their own phone / SMS consent copy in sync with
+        // userContacts.
         allow update: if isActive()
           && isOwner(memberId)
-          && changedKeys().hasOnly(['phone', 'updatedAt'])
+          && changedKeys().hasOnly(['phone', 'smsOptIn', 'updatedAt'])
           && incoming().phone == myPhoneAfter()
+          && incoming().get('smsOptIn', false) is bool
+          && (incoming().get('smsOptIn', false) == false || mySmsOptInAfter() == true)
           && incoming().updatedAt == request.time;
 
         // Remove from the class (their posts stay).
@@ -386,9 +401,11 @@ service cloud.firestore {
           && getAfter(myPath()).data.deletedAt == null
           && !exists(memberPath(classId, requestId))
           && get(/databases/$(database)/documents/classes/$(classId)).data.archivedAt == null
-          && incoming().keys().hasOnly(['userId', 'phone', 'createdAt'])
+          && incoming().keys().hasOnly(['userId', 'phone', 'smsOptIn', 'createdAt'])
           && incoming().userId == requestId
           && incoming().phone == myPhoneAfter()
+          && incoming().get('smsOptIn', false) is bool
+          && (incoming().get('smsOptIn', false) == false || mySmsOptInAfter() == true)
           && incoming().createdAt == request.time;
 
         // Cancel (requester), reject or approve (students.manage).
@@ -408,13 +425,18 @@ service cloud.firestore {
         }
 
         // Rules can't loop over a list, so each link's shape is checked in
-        // the app (and links render as http(s) only).
+        // the app (and links render as http(s) only). HTML bodies can't be
+        // sanitized here either: the app sanitizes them on every render.
+        // Keep the limits in sync with src/lib/posts.ts / post-images.ts.
         function hasValidContent(data) {
           return data.title is string
             && data.title.trim().size() > 0
             && data.title.size() <= 200
             && data.body is string
-            && data.body.size() <= 10000
+            && data.body.size() <= 20000
+            && data.get('format', 'text') in ['text', 'html']
+            && data.get('imageIds', []) is list
+            && data.get('imageIds', []).size() <= 3
             && data.links is list
             && data.links.size() <= 10;
         }
@@ -429,7 +451,7 @@ service cloud.firestore {
         allow create: if canIn(classId, 'posts.create')
           && classIsOpen()
           && incoming().keys().hasOnly([
-            'userId', 'title', 'body', 'links', 'pinned',
+            'userId', 'title', 'body', 'format', 'imageIds', 'links', 'pinned',
             'createdAt', 'updatedAt', 'deletedAt'
           ])
           && incoming().userId == request.auth.uid
@@ -445,7 +467,9 @@ service cloud.firestore {
         allow update: if resource.data.deletedAt == null
           && classIsOpen()
           && ((isAuthor() && inClass(classId)) || canIn(classId, 'posts.edit_any'))
-          && changedKeys().hasOnly(['title', 'body', 'links', 'pinned', 'updatedAt'])
+          && changedKeys().hasOnly([
+            'title', 'body', 'format', 'imageIds', 'links', 'pinned', 'updatedAt'
+          ])
           && hasValidContent(incoming())
           && (!('pinned' in changedKeys()) || canIn(classId, 'posts.pin'))
           && incoming().pinned is bool
@@ -473,6 +497,46 @@ service cloud.firestore {
           && incoming().updatedAt == request.time;
 
         allow delete: if false;
+
+        // ----- photos (bytes, compressed in the browser) -----
+        //
+        // Written in the same batch as the post (create / edit), which lists
+        // them in imageIds; that's what caps a post at 3. Removed photos are
+        // deleted outright; deleting the post just hides them with it.
+        match /images/{imageId} {
+          function postPath() {
+            return /databases/$(database)/documents/classes/$(classId)/posts/$(postId);
+          }
+
+          function canEditPost(post) {
+            return (post.userId == request.auth.uid && inClass(classId))
+              || canIn(classId, 'posts.edit_any');
+          }
+
+          allow read: if inClass(classId)
+            && (get(postPath()).data.deletedAt == null
+              || get(postPath()).data.userId == request.auth.uid
+              || canIn(classId, 'posts.delete_any'));
+
+          allow create: if classIsOpen()
+            && canEditPost(getAfter(postPath()).data)
+            && getAfter(postPath()).data.deletedAt == null
+            && imageId in getAfter(postPath()).data.get('imageIds', [])
+            && incoming().keys().hasOnly(['userId', 'type', 'data', 'width', 'height', 'createdAt'])
+            && incoming().userId == request.auth.uid
+            && incoming().type in ['image/webp', 'image/jpeg']
+            && incoming().data is bytes
+            && incoming().data.size() <= 700000
+            && incoming().width is int
+            && incoming().height is int
+            && incoming().createdAt == request.time;
+
+          allow delete: if classIsOpen()
+            && canEditPost(get(postPath()).data)
+            && !(imageId in getAfter(postPath()).data.get('imageIds', []));
+
+          allow update: if false;
+        }
 
         // ----- threaded comments (soft-deleted, never hard-deleted) -----
         //

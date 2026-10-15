@@ -65,13 +65,16 @@ export function AddMemberDialog({
         setSubmitting(true);
 
         try {
-            const phone =
-                contacts.data.find((contact) => contact.id === userId)?.phone ??
-                '';
+            const contact = contacts.data.find((item) => item.id === userId);
 
             await addExistingMember(
                 classId,
-                { userId, roleId, phone },
+                {
+                    userId,
+                    roleId,
+                    phone: contact?.phone ?? '',
+                    smsOptIn: contact?.smsOptIn ?? false,
+                },
                 currentUserId,
                 joinRequestIds.has(userId),
             );

@@ -400,15 +400,13 @@ That's about 4 to 5 weeks part-time for a version the class can use. Phases 0 to
 
 ## After launch (all free)
 
-- **Image links:** paste an image URL, rendered through `react-markdown`. This is when markdown support gets added.
-- **Cloudinary uploads:** unsigned uploads to Cloudinary's free tier, which doesn't need a card.
-- **Email the class:** an admin button that opens a `mailto:` link with every student in BCC (sent from the instructor's own school account).
+- **Built early (2026-10-15, Phase 5b):** rich-text posts (Tiptap, HTML sanitized with DOMPurify on render, no markdown); a photo gallery of up to 3 per post stored as Firestore bytes after in-browser compression (no Storage, no Cloudinary); "Email selected" (`mailto:` BCC) and "Text selected" (`sms:` group text from the sender's own phone, opted-in members only, batches of 30), both behind the `students.message` class permission.
 - **EmailJS:** sending from the browser, at about 200 emails a month on the free tier.
-- **SMS:** no reliable free option. Twilio and similar cost per message, need a server for the secret key, and US business texting needs A2P 10DLC registration; carrier email-to-text gateways are shutting down (AT&T ended its gateway in 2025). Free route: link the app to a **Remind** class (free for teachers, sends SMS) or a GroupMe group. Phone numbers (E.164) and SMS opt-in are stored from v1 so a paid option stays possible.
+- **SMS sent by the app:** no reliable free option. Twilio and similar cost per message, need a server for the secret key, and US business texting needs A2P 10DLC registration; carrier email-to-text gateways are shutting down (AT&T ended its gateway in 2025). Free routes: the `sms:` group text above, or a **Remind** class (free for teachers, Remind sends the texts). Phone numbers (E.164) and SMS opt-in are stored so a paid option stays possible.
 - **Unread badge:** store `lastSeenAt` on each user and highlight posts newer than it. This is free, with no email needed.
 - **Post categories:** tags such as Exam, Clinical, Lab or General, with a filter on the feed.
 - **Due-date posts:** an optional `dueAt` field and an "Upcoming" section at the top of the feed.
 - **Installable app (PWA):** students can add the site to their phone home screen. Push notifications are left out because they need a server.
-- **Upvotes (decided: after launch):** `posts/{postId}/votes/{uid}` with the user's uid as the document ID, so each user can vote once. A stored `score` on the post, updated in the same batch, enables "Top" sorting. The v1 feed sorts Pinned, then New.
+- **Upvotes (decided: after launch):** `posts/{postId}/votes/{uid}` with the user's uid as the document ID, so each user can vote once. A stored `score` on the post, updated in the same batch, enables "Top" sorting. The v1 feed sorts Pinned, then New. **Votes are immutable (user decision, for integrity):** the rules allow create only, never update or delete, for anyone including super admins, and no role permission can change that.
 
 Firebase Storage and Cloud Functions are not used, because both need the paid Blaze plan.

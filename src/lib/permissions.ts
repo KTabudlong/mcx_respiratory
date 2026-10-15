@@ -13,6 +13,12 @@ export const PERMISSIONS = [
         key: 'students.manage',
         label: 'Approve, add, change the role of and remove students',
     },
+    // App-only: email / text open the sender's own mail or messages app
+    // with addresses the roster already shows, so no rule guards it.
+    {
+        key: 'students.message',
+        label: 'Email and text selected students',
+    },
     { key: 'roles.manage', label: 'Create and edit roles below their own' },
     { key: 'posts.create', label: 'Create posts' },
     { key: 'posts.edit_any', label: "Edit anyone's posts" },

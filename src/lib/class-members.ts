@@ -24,8 +24,8 @@ function joinRequestRef(classId: string, uid: string) {
     return doc(db, 'classes', classId, 'joinRequests', uid);
 }
 
-// Approve: create the membership (copying the phone from the request so
-// classmates see it right away) and delete the request, in one batch.
+// Approve: create the membership (copying the phone and SMS consent from the
+// request so they're there right away) and delete the request, in one batch.
 export async function approveJoinRequest(
     request: JoinRequest,
     roleId: string,
@@ -37,6 +37,7 @@ export async function approveJoinRequest(
         userId: request.userId,
         roleId,
         phone: request.phone,
+        smsOptIn: request.smsOptIn ?? false,
         addedBy: approvedBy,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
@@ -47,11 +48,16 @@ export async function approveJoinRequest(
 }
 
 // Super admins only (they can list users and read contacts): adds an existing
-// account, copying the phone from their contact doc. A pending join request
-// for this class is cleared in the same batch.
+// account, copying the phone and SMS consent from their contact doc. A
+// pending join request for this class is cleared in the same batch.
 export async function addExistingMember(
     classId: string,
-    member: { userId: string; roleId: string; phone: string },
+    member: {
+        userId: string;
+        roleId: string;
+        phone: string;
+        smsOptIn: boolean;
+    },
     addedBy: string,
     hasJoinRequest: boolean,
 ) {
@@ -152,6 +158,7 @@ export async function inviteToClass(
         userId: uid,
         roleId: input.roleId,
         phone: '',
+        smsOptIn: false,
         addedBy: invitedBy,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),

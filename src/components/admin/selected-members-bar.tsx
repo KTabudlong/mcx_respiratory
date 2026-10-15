@@ -1,16 +1,20 @@
-import { Check, Copy, Mail, X } from 'lucide-react';
+import { Check, Copy, Mail, MessageSquare, X } from 'lucide-react';
 import { useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { MAILTO_MAX_LENGTH, mailtoBcc } from '@/lib/email';
 
 // Shown while roster rows are selected: open the mail app with everyone in
-// BCC, or copy the addresses (for long lists or webmail).
-export function EmailSelectedBar({
+// BCC, copy the addresses (long lists or webmail), or text them.
+export function SelectedMembersBar({
+    selectedCount,
     emails,
+    onText,
     onClear,
 }: {
+    selectedCount: number;
     emails: string[];
+    onText: () => void;
     onClear: () => void;
 }) {
     const [copied, setCopied] = useState(false);
@@ -35,7 +39,7 @@ export function EmailSelectedBar({
             className="flex flex-col gap-2 rounded-md border bg-muted/50 p-3 sm:flex-row sm:items-center"
         >
             <p className="text-sm font-medium sm:mr-auto">
-                {emails.length} selected
+                {selectedCount} selected
                 {tooLong && (
                     <span className="block text-xs font-normal text-muted-foreground">
                         Too many for an email link — copy the addresses and
@@ -49,7 +53,7 @@ export function EmailSelectedBar({
                 )}
             </p>
             <div className="flex flex-wrap gap-2">
-                {!tooLong && (
+                {!tooLong && emails.length > 0 && (
                     <Button asChild size="sm">
                         <a href={href}>
                             <Mail aria-hidden />
@@ -57,9 +61,18 @@ export function EmailSelectedBar({
                         </a>
                     </Button>
                 )}
-                <Button size="sm" variant="outline" onClick={handleCopy}>
+                <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={emails.length === 0}
+                    onClick={handleCopy}
+                >
                     {copied ? <Check aria-hidden /> : <Copy aria-hidden />}
                     {copied ? 'Copied' : 'Copy addresses'}
+                </Button>
+                <Button size="sm" variant="outline" onClick={onText}>
+                    <MessageSquare aria-hidden />
+                    Text
                 </Button>
                 <Button size="sm" variant="ghost" onClick={onClear}>
                     <X aria-hidden />

@@ -137,3 +137,46 @@
         @apply bg-background text-foreground;
     }
 }
+
+/* Post bodies from the rich-text editor (shown and while editing). */
+@layer components {
+    .rich-text {
+        @apply grid gap-3 break-words;
+
+        & h2 {
+            @apply text-xl leading-tight font-semibold;
+        }
+
+        & h3 {
+            @apply text-lg leading-snug font-semibold;
+        }
+
+        & ul {
+            @apply list-disc pl-6;
+        }
+
+        & ol {
+            @apply list-decimal pl-6;
+        }
+
+        & li > p {
+            @apply my-0.5;
+        }
+
+        & blockquote {
+            @apply border-l-4 pl-4 text-muted-foreground;
+        }
+
+        & hr {
+            @apply my-1;
+        }
+
+        & a {
+            @apply font-medium underline underline-offset-4;
+        }
+
+        & code {
+            @apply rounded bg-muted px-1 py-0.5 font-mono text-sm;
+        }
+    }
+}

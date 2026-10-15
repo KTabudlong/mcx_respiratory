@@ -7,6 +7,8 @@ import { FormMessage } from '@/components/common/form-message';
 import { PageLoader } from '@/components/common/page-loader';
 import { LinkChips } from '@/components/posts/link-chips';
 import { PostActions } from '@/components/posts/post-actions';
+import { PostBody } from '@/components/posts/post-body';
+import { PostGallery } from '@/components/posts/post-gallery';
 import { PostMeta } from '@/components/posts/post-meta';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/use-auth';
@@ -86,11 +88,8 @@ export default function PostShow() {
                 <h1 className="text-2xl leading-tight font-semibold break-words">
                     {post.data.title}
                 </h1>
-                {post.data.body && (
-                    <p className="break-words whitespace-pre-wrap">
-                        {post.data.body}
-                    </p>
-                )}
+                <PostBody post={post.data} />
+                <PostGallery post={post.data} />
                 <LinkChips links={post.data.links} />
             </article>
             {author.error && (

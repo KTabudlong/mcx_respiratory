@@ -1,17 +1,22 @@
 import {
-    addDoc,
+    Bytes,
     collection,
     doc,
     serverTimestamp,
     updateDoc,
+    writeBatch,
 } from 'firebase/firestore';
+import type { WriteBatch } from 'firebase/firestore';
 
 import { db } from '@/lib/firebase';
+import type { PreparedImage } from '@/lib/post-images';
+import { isBlankHtml } from '@/lib/rich-text';
 import type { PostLink } from '@/types';
 
-// Keep in sync with hasValidContent() in firestore.rules.
+// Keep in sync with hasValidContent() in firestore.rules. The body is
+// editor HTML, so the limit counts tags too.
 export const MAX_TITLE_LENGTH = 200;
-export const MAX_BODY_LENGTH = 10000;
+export const MAX_BODY_LENGTH = 20000;
 export const MAX_LINKS = 10;
 export const MAX_LINK_LABEL_LENGTH = 80;
 export const FEED_PAGE_SIZE = 20;
@@ -80,7 +85,7 @@ export function preparePost(
     if (input.body.length > MAX_BODY_LENGTH) {
         return {
             post: null,
-            error: `Text must be ${MAX_BODY_LENGTH} characters or fewer.`,
+            error: 'The text is too long. Shorten it or split it into two posts.',
         };
     }
 
@@ -115,7 +120,12 @@ export function preparePost(
     }
 
     return {
-        post: { title, body: input.body.trim(), links, pinned: input.pinned },
+        post: {
+            title,
+            body: isBlankHtml(input.body) ? '' : input.body.trim(),
+            links,
+            pinned: input.pinned,
+        },
         error: '',
     };
 }
@@ -124,37 +134,89 @@ function postRef(classId: string, postId: string) {
     return doc(db, 'classes', classId, 'posts', postId);
 }
 
+function imageRef(classId: string, postId: string, imageId: string) {
+    return doc(db, 'classes', classId, 'posts', postId, 'images', imageId);
+}
+
+function addImages(
+    batch: WriteBatch,
+    classId: string,
+    postId: string,
+    userId: string,
+    images: PreparedImage[],
+) {
+    for (const image of images) {
+        batch.set(imageRef(classId, postId, image.id), {
+            userId,
+            type: image.type,
+            data: Bytes.fromUint8Array(image.bytes),
+            width: image.width,
+            height: image.height,
+            createdAt: serverTimestamp(),
+        });
+    }
+}
+
+// The post and its photos in one batch (the rules check each photo against
+// the post's imageIds).
 export async function createPost(
     classId: string,
     userId: string,
     post: PostInput,
+    images: PreparedImage[],
 ) {
-    const ref = await addDoc(collection(db, 'classes', classId, 'posts'), {
+    const ref = doc(collection(db, 'classes', classId, 'posts'));
+    const batch = writeBatch(db);
+
+    batch.set(ref, {
         ...post,
+        format: 'html',
+        imageIds: images.map((image) => image.id),
         userId,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
         deletedAt: null,
     });
+    addImages(batch, classId, ref.id, userId, images);
+    await batch.commit();
 
     return ref.id;
 }
 
+export type ImageChanges = {
+    // Final gallery order (kept + new).
+    imageIds: string[];
+    added: PreparedImage[];
+    removedIds: string[];
+};
+
 // `pinned` is only sent when it changed, since the rules require posts.pin
-// for that.
-export function updatePost(
+// for that. Removed photos are deleted outright (they're not posts).
+export async function updatePost(
     classId: string,
     postId: string,
+    userId: string,
     post: PostInput,
     pinnedChanged: boolean,
+    images: ImageChanges,
 ) {
     const { pinned, ...content } = post;
+    const batch = writeBatch(db);
 
-    return updateDoc(postRef(classId, postId), {
+    batch.update(postRef(classId, postId), {
         ...content,
+        format: 'html',
+        imageIds: images.imageIds,
         ...(pinnedChanged ? { pinned } : {}),
         updatedAt: serverTimestamp(),
     });
+    addImages(batch, classId, postId, userId, images.added);
+
+    for (const id of images.removedIds) {
+        batch.delete(imageRef(classId, postId, id));
+    }
+
+    await batch.commit();
 }
 
 export function setPostPinned(

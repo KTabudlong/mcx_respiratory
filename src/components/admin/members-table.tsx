@@ -37,35 +37,42 @@ export function MembersTable({
     assignableRoles: ClassRole[];
     currentUserId: string | undefined;
     emptyMessage: string;
-    // Selected user IDs (for "Email selected").
-    selectedIds: Set<string>;
-    onSelect: (userIds: string[], selected: boolean) => void;
+    // Selected user IDs for email / text; leave both out to hide the
+    // checkbox column.
+    selectedIds?: Set<string>;
+    onSelect?: (userIds: string[], selected: boolean) => void;
     onChangeRole: (row: MemberRow, roleId: string) => void;
     onRemove: (row: MemberRow) => void;
 }) {
     const showActions = rows.some((row) => row.manageable);
+    const selectable = selectedIds !== undefined && onSelect !== undefined;
     const allSelected =
         rows.length > 0 &&
-        rows.every((row) => selectedIds.has(row.member.userId));
+        rows.every((row) => selectedIds?.has(row.member.userId));
+    const columns = 4 + (showActions ? 1 : 0) + (selectable ? 1 : 0);
 
     return (
         <div className="rounded-md border">
             <Table>
                 <TableHeader>
                     <TableRow>
-                        <TableHead className="w-10">
-                            <Checkbox
-                                aria-label="Select everyone shown"
-                                checked={allSelected}
-                                disabled={rows.length === 0}
-                                onCheckedChange={(checked) =>
-                                    onSelect(
-                                        rows.map((row) => row.member.userId),
-                                        checked === true,
-                                    )
-                                }
-                            />
-                        </TableHead>
+                        {selectable && (
+                            <TableHead className="w-10">
+                                <Checkbox
+                                    aria-label="Select everyone shown"
+                                    checked={allSelected}
+                                    disabled={rows.length === 0}
+                                    onCheckedChange={(checked) =>
+                                        onSelect(
+                                            rows.map(
+                                                (row) => row.member.userId,
+                                            ),
+                                            checked === true,
+                                        )
+                                    }
+                                />
+                            </TableHead>
+                        )}
                         <TableHead>Name</TableHead>
                         <TableHead>Phone</TableHead>
                         <TableHead>Role</TableHead>
@@ -81,7 +88,7 @@ export function MembersTable({
                     {rows.length === 0 && (
                         <TableRow>
                             <TableCell
-                                colSpan={showActions ? 6 : 5}
+                                colSpan={columns}
                                 className="py-8 text-center text-muted-foreground"
                             >
                                 {emptyMessage}
@@ -96,23 +103,27 @@ export function MembersTable({
                             <TableRow
                                 key={member.id}
                                 data-state={
-                                    selectedIds.has(member.userId)
+                                    selectedIds?.has(member.userId)
                                         ? 'selected'
                                         : undefined
                                 }
                             >
-                                <TableCell>
-                                    <Checkbox
-                                        aria-label={`Select ${user?.firstName ?? 'member'} ${user?.lastName ?? ''}`.trim()}
-                                        checked={selectedIds.has(member.userId)}
-                                        onCheckedChange={(checked) =>
-                                            onSelect(
-                                                [member.userId],
-                                                checked === true,
-                                            )
-                                        }
-                                    />
-                                </TableCell>
+                                {selectable && (
+                                    <TableCell>
+                                        <Checkbox
+                                            aria-label={`Select ${user?.firstName ?? 'member'} ${user?.lastName ?? ''}`.trim()}
+                                            checked={selectedIds.has(
+                                                member.userId,
+                                            )}
+                                            onCheckedChange={(checked) =>
+                                                onSelect(
+                                                    [member.userId],
+                                                    checked === true,
+                                                )
+                                            }
+                                        />
+                                    </TableCell>
+                                )}
                                 <TableCell>
                                     <div className="flex items-center gap-2 font-medium">
                                         {user

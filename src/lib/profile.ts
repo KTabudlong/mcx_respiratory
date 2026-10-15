@@ -66,6 +66,7 @@ export async function saveOwnProfile({
     for (const membership of memberships) {
         batch.update(doc(db, 'classes', membership.classId, 'members', uid), {
             phone: input.phone,
+            smsOptIn: input.smsOptIn,
             updatedAt: serverTimestamp(),
         });
     }
@@ -74,6 +75,7 @@ export async function saveOwnProfile({
         batch.set(doc(db, 'classes', joinClassId, 'joinRequests', uid), {
             userId: uid,
             phone: input.phone,
+            smsOptIn: input.smsOptIn,
             createdAt: serverTimestamp(),
         });
     }
@@ -82,11 +84,16 @@ export async function saveOwnProfile({
 }
 
 // From /pending: ask to join a class after sign-up (e.g. after a rejection).
-// The phone must match the user's contact doc (rules check it).
-export function requestToJoin(uid: string, classId: string, phone: string) {
+// Phone and SMS consent must match the user's contact doc (rules check it).
+export function requestToJoin(
+    uid: string,
+    classId: string,
+    contact: { phone: string; smsOptIn: boolean },
+) {
     return setDoc(doc(db, 'classes', classId, 'joinRequests', uid), {
         userId: uid,
-        phone,
+        phone: contact.phone,
+        smsOptIn: contact.smsOptIn,
         createdAt: serverTimestamp(),
     });
 }

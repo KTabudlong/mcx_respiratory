@@ -1,4 +1,4 @@
-import type { Timestamp } from 'firebase/firestore';
+import type { Bytes, Timestamp } from 'firebase/firestore';
 
 // classes/{classId} — archived instead of deleted. Named ClassGroup because
 // `class` is a reserved word.
@@ -35,6 +35,9 @@ export type ClassMember = {
     userId: string;
     roleId: string;
     phone: string;
+    // Copy of userContacts.smsOptIn for "Text selected". Missing on
+    // memberships created before it existed (treat as false).
+    smsOptIn?: boolean;
     addedBy: string;
     createdAt: Timestamp;
     updatedAt: Timestamp;
@@ -46,6 +49,7 @@ export type JoinRequest = {
     classId: string;
     userId: string;
     phone: string;
+    smsOptIn?: boolean;
     createdAt: Timestamp;
 };
 
@@ -68,17 +72,37 @@ export type PostLink = { url: string; label: string };
 
 // classes/{classId}/posts/{postId} — soft-deleted, never hard-deleted.
 // `classId` comes from the path; the author's name is looked up from users.
+// Older posts have no `format` (plain text) and no `imageIds`.
 export type Post = {
     id: string;
     classId: string;
     userId: string;
     title: string;
+    // Plain text, or sanitized-on-display HTML from the rich-text editor.
     body: string;
+    format?: 'text' | 'html';
+    // Gallery order; each ID is a doc in the post's images subcollection.
+    imageIds?: string[];
     links: PostLink[];
     pinned: boolean;
     createdAt: Timestamp;
     updatedAt: Timestamp;
     deletedAt: Timestamp | null;
+};
+
+// classes/{classId}/posts/{postId}/images/{imageId} — a photo compressed in
+// the browser and stored as bytes (no Firebase Storage on the free plan).
+// Hidden and restored along with its post.
+export type PostImage = {
+    id: string;
+    classId: string;
+    postId: string;
+    userId: string;
+    type: 'image/webp' | 'image/jpeg';
+    data: Bytes;
+    width: number;
+    height: number;
+    createdAt: Timestamp;
 };
 
 // classes/{classId}/posts/{postId}/comments/{commentId} — soft-deleted.

@@ -88,7 +88,8 @@
 - **Phase 3:** `board-layout` (top bar, class switcher, user menu), routes under `/classes/:classId` (feed, `posts/new`, `posts/:postId`, `posts/:postId/edit`), feed pinned-first with "load more" by 20 + title search, right sidebar (class info, pinned links), post create/edit/soft delete/pin, archived classes read-only. Links render http(s) only. `docData` now uses estimated server timestamps.
 - **Phase 4:** comments with `parentId` + `ancestorIds` (rules enforce parent chain + depth ≤ 5), reply/edit/delete, collapse threads, "[deleted]" placeholders (deleted text stays private), counts via `count()` on feed cards.
 - **Phase 5:** admin dashboards (super admin `/admin`: open classes, active/deactivated users, pending join requests, class list; class overview: members, join requests, posts, deleted posts — all `count()`), breadcrumbs + class-aware "Open board" in the admin header, **Moderation** page (all/live/deleted posts, delete/restore, expand for comments with delete/restore), roster row selection + **Email selected** (mailto BCC / copy), super admin **user page** `/admin/users/:userId`. Deployed rules (super admin collection-group reads of posts/comments) + indexes. Data-table upgrade skipped. Renamed `useMyMemberships`/`useMyJoinRequests` → `useMembershipsOf`/`useJoinRequestsOf`.
-- Tests: 63 passing. Shadcn `dropdown-menu` + `textarea` added (imports fixed).
+- **Phase 5b (after the Phase 5 commit, not yet committed):** Tiptap rich-text post editor (HTML + DOMPurify on render, lazy chunk), photo gallery (≤3 per post, browser-compressed, Firestore bytes in `posts/{p}/images`), `students.message` permission gating roster selection / Email / new **Text selected** (`sms:` group texts, batches of 30, opted-in only; `smsOptIn` copied onto join requests + memberships). Rules updated, validated and deployed (with OK). Votes-are-immutable decision recorded in the plan.
+- Tests: 75 passing. Shadcn `dropdown-menu` + `textarea` added (imports fixed).
 
 **2026-10-08 (session 3) — Planning, then Phase 1 (auth) and Phase 2 (rules, roles, admin panel)**
 
@@ -108,8 +109,7 @@
 
 ### Resume here
 
-1. **The user runs the local testing checklist** (Phases 2b–5, given in chat 2026-10-15; same areas as the "(User) Manual test" items in `ROADMAP.md`); fix what they find.
-2. (User) Commit on `dev`; merge `dev` → `main` when happy (the live site still runs the pre-2b code).
+1. **The user runs the local testing checklist** — the "(User) Manual test" sub-lists under Phases 2b–5b in `ROADMAP.md`; fix what they find.2. (User) Commit on `dev`; merge `dev` → `main` when happy (the live site still runs the pre-2b code).
 3. **Phase 6** — emulator + rules tests, mobile/accessibility pass, invite the class.
 4. Main bundle is ~976 kB (Firebase SDK + board); the admin panel is split out. Revisit chunking if load time matters.
 

@@ -135,11 +135,10 @@ export default function Pending() {
                                 }
 
                                 run(() =>
-                                    requestToJoin(
-                                        profile.id,
-                                        classId,
-                                        contact?.phone ?? '',
-                                    ),
+                                    requestToJoin(profile.id, classId, {
+                                        phone: contact?.phone ?? '',
+                                        smsOptIn: contact?.smsOptIn ?? false,
+                                    }),
                                 );
                             }}
                         >

@@ -1,9 +1,11 @@
+import { ImageIcon } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { Link } from 'react-router';
 
 import { CommentCountLink } from '@/components/posts/comment-count-link';
 import { LinkChips } from '@/components/posts/link-chips';
 import { PostMeta } from '@/components/posts/post-meta';
+import { postBodyText } from '@/lib/rich-text';
 import { cn } from '@/lib/utils';
 import type { Post, UserProfile } from '@/types';
 
@@ -18,6 +20,9 @@ export function PostCard({
     author: UserProfile | undefined;
     actions?: ReactNode;
 }) {
+    const preview = postBodyText(post);
+    const imageCount = post.imageIds?.length ?? 0;
+
     return (
         <article
             className={cn(
@@ -37,13 +42,21 @@ export function PostCard({
                     {post.title}
                 </Link>
             </h2>
-            {post.body && (
+            {preview && (
                 <p className="line-clamp-3 text-sm break-words whitespace-pre-line text-muted-foreground">
-                    {post.body}
+                    {preview}
                 </p>
             )}
             <LinkChips links={post.links} />
-            <CommentCountLink post={post} />
+            <div className="flex flex-wrap items-center gap-4">
+                <CommentCountLink post={post} />
+                {imageCount > 0 && (
+                    <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <ImageIcon className="size-3.5" aria-hidden />
+                        {imageCount} {imageCount === 1 ? 'photo' : 'photos'}
+                    </span>
+                )}
+            </div>
         </article>
     );
 }

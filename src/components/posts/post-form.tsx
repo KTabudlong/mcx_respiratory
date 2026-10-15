@@ -1,34 +1,47 @@
 import type { FormEvent } from 'react';
-import { useState } from 'react';
+import { lazy, Suspense, useState } from 'react';
 
 import { FormMessage } from '@/components/common/form-message';
+import { ImagesField } from '@/components/posts/images-field';
 import type { LinkRow } from '@/components/posts/links-field';
 import { LinksField } from '@/components/posts/links-field';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
+import { Skeleton } from '@/components/ui/skeleton';
 import { getErrorMessage } from '@/lib/errors';
+import type { ImageDraft } from '@/lib/post-images';
 import type { PostInput } from '@/lib/posts';
-import { MAX_BODY_LENGTH, MAX_TITLE_LENGTH, preparePost } from '@/lib/posts';
+import { MAX_TITLE_LENGTH, preparePost } from '@/lib/posts';
 
-// Create and edit share this form. `onSubmit` gets the cleaned post.
+// The editor is the heaviest part of the board, so it loads with the form.
+const RichTextEditor = lazy(() =>
+    import('@/components/posts/rich-text-editor').then((module) => ({
+        default: module.RichTextEditor,
+    })),
+);
+
+// Create and edit share this form. `initial.body` is editor HTML;
+// `onSubmit` gets the cleaned post and the photos in gallery order.
 export function PostForm({
     initial,
+    initialImages,
     canPin,
     submitLabel,
     onSubmit,
     onCancel,
 }: {
     initial: PostInput;
+    initialImages: ImageDraft[];
     canPin: boolean;
     submitLabel: string;
-    onSubmit: (post: PostInput) => Promise<void>;
+    onSubmit: (post: PostInput, images: ImageDraft[]) => Promise<void>;
     onCancel: () => void;
 }) {
     const [title, setTitle] = useState(initial.title);
     const [body, setBody] = useState(initial.body);
+    const [images, setImages] = useState(initialImages);
     const [links, setLinks] = useState<LinkRow[]>(() =>
         initial.links.map((link) => ({ ...link, key: crypto.randomUUID() })),
     );
@@ -50,7 +63,7 @@ export function PostForm({
         setSubmitting(true);
 
         try {
-            await onSubmit(result.post);
+            await onSubmit(result.post, images);
         } catch (err) {
             setError(getErrorMessage(err));
             setSubmitting(false);
@@ -70,20 +83,21 @@ export function PostForm({
                 />
             </div>
             <div className="grid gap-2">
-                <Label htmlFor="post-body">
+                <Label id="post-body-label">
                     Text{' '}
                     <span className="font-normal text-muted-foreground">
                         (optional)
                     </span>
                 </Label>
-                <Textarea
-                    id="post-body"
-                    rows={8}
-                    maxLength={MAX_BODY_LENGTH}
-                    value={body}
-                    onChange={(event) => setBody(event.target.value)}
-                />
+                <Suspense fallback={<Skeleton className="h-52 w-full" />}>
+                    <RichTextEditor
+                        value={initial.body}
+                        labelledBy="post-body-label"
+                        onChange={setBody}
+                    />
+                </Suspense>
             </div>
+            <ImagesField images={images} onChange={setImages} />
             <LinksField links={links} onChange={setLinks} />
             {canPin && (
                 <div className="flex items-center gap-2">

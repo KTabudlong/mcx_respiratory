@@ -44,14 +44,18 @@ export default function PostNew() {
                 ) : (
                     <PostForm
                         initial={EMPTY_POST}
+                        initialImages={[]}
                         canPin={canIn(classId, 'posts.pin')}
                         submitLabel="Post"
                         onCancel={() => navigate(feedPath)}
-                        onSubmit={async (post) => {
+                        onSubmit={async (post, images) => {
                             const id = await createPost(
                                 classId,
                                 user?.uid ?? '',
                                 post,
+                                images.flatMap((image) =>
+                                    image.prepared ? [image.prepared] : [],
+                                ),
                             );
 
                             navigate(`${feedPath}/posts/${id}`, {
