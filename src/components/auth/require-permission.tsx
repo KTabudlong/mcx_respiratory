@@ -33,6 +33,15 @@ export function RequireSuperAdmin() {
     return isSuperAdmin ? <Outlet /> : <NoAccess />;
 }
 
+// Board pages for :classId — members of that class (and super admins).
+export function RequireClassMember() {
+    const { accessIn } = useAuth();
+    const { classId = '' } = useParams();
+    const access = accessIn(classId);
+
+    return access.isSuperAdmin || access.role ? <Outlet /> : <NoAccess />;
+}
+
 // Checks the signed-in user's role in the class from the :classId route
 // param (always true for super admins).
 export function RequireClassPermission({ anyOf }: { anyOf: Permission[] }) {

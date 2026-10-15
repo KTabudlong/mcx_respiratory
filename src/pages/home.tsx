@@ -1,5 +1,8 @@
+import { Navigate } from 'react-router';
+
 import { AdminLink } from '@/components/auth/admin-link';
-import { Button } from '@/components/ui/button';
+import { FormMessage } from '@/components/common/form-message';
+import { PageLoader } from '@/components/common/page-loader';
 import {
     Card,
     CardContent,
@@ -7,30 +10,41 @@ import {
     CardHeader,
     CardTitle,
 } from '@/components/ui/card';
-import { useAuth } from '@/hooks/use-auth';
-import { logOut } from '@/lib/auth';
+import { useMyClasses } from '@/hooks/use-my-classes';
+import { getErrorMessage } from '@/lib/errors';
+import { pickStartClass } from '@/lib/last-class';
 
+// `/` opens the class you last switched to (or your newest one).
 export default function Home() {
-    const { profile } = useAuth();
+    const { classes, loading, error } = useMyClasses();
 
+    if (loading) {
+        return <PageLoader />;
+    }
+
+    if (error) {
+        return <FormMessage message={getErrorMessage(error)} />;
+    }
+
+    const start = pickStartClass(classes);
+
+    if (start) {
+        return <Navigate to={`/classes/${start.id}`} replace />;
+    }
+
+    // Only super admins get here without a class (everyone else is pending).
     return (
-        <main className="flex min-h-svh items-center justify-center p-4 sm:p-6">
-            <Card className="w-full max-w-md">
-                <CardHeader>
-                    <CardTitle className="text-xl">
-                        Welcome, {profile?.firstName}
-                    </CardTitle>
-                    <CardDescription>
-                        The class board is coming in Phase 3.
-                    </CardDescription>
-                </CardHeader>
-                <CardContent className="flex flex-wrap gap-2">
-                    <AdminLink />
-                    <Button variant="outline" onClick={() => logOut()}>
-                        Log out
-                    </Button>
-                </CardContent>
-            </Card>
-        </main>
+        <Card className="mx-auto max-w-md">
+            <CardHeader>
+                <CardTitle>You're not in a class yet</CardTitle>
+                <CardDescription>
+                    Open a class in the admin panel and use “Add existing user”
+                    to add yourself, then come back to the board.
+                </CardDescription>
+            </CardHeader>
+            <CardContent>
+                <AdminLink />
+            </CardContent>
+        </Card>
     );
 }

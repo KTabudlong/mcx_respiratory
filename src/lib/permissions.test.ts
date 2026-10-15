@@ -10,6 +10,7 @@ import {
     myRank,
     outranks,
     PERMISSIONS,
+    postAbilities,
 } from '@/lib/permissions';
 import type { ClassRole } from '@/types';
 
@@ -102,5 +103,47 @@ describe('assignableRoles / defaultRole', () => {
     it('defaults join requests to the lowest assignable role', () => {
         expect(defaultRole(roles, asPresident)?.id).toBe('student');
         expect(defaultRole([president], asPresident)).toBeUndefined();
+    });
+});
+
+describe('postAbilities', () => {
+    const asStudent: ClassAccess = { isSuperAdmin: false, role: student };
+    const moderator: ClassAccess = {
+        isSuperAdmin: false,
+        role: makeRole('mod', 60, [
+            'posts.edit_any',
+            'posts.delete_any',
+            'posts.pin',
+        ]),
+    };
+    const post = { userId: 'me' };
+
+    it('lets authors edit and delete their own posts, but not pin', () => {
+        expect(postAbilities(post, 'me', asStudent, true)).toEqual({
+            canEdit: true,
+            canPin: false,
+            canDelete: true,
+        });
+        expect(postAbilities(post, 'other', asStudent, true)).toEqual({
+            canEdit: false,
+            canPin: false,
+            canDelete: false,
+        });
+    });
+
+    it("lets moderators handle anyone's posts", () => {
+        expect(postAbilities(post, 'other', moderator, true)).toEqual({
+            canEdit: true,
+            canPin: true,
+            canDelete: true,
+        });
+    });
+
+    it('only allows deleting in archived classes', () => {
+        expect(postAbilities(post, 'me', moderator, false)).toEqual({
+            canEdit: false,
+            canPin: false,
+            canDelete: true,
+        });
     });
 });

@@ -1,5 +1,15 @@
 {
-    "indexes": [],
+    "indexes": [
+        {
+            "collectionGroup": "posts",
+            "queryScope": "COLLECTION",
+            "fields": [
+                { "fieldPath": "deletedAt", "order": "ASCENDING" },
+                { "fieldPath": "pinned", "order": "DESCENDING" },
+                { "fieldPath": "createdAt", "order": "DESCENDING" }
+            ]
+        }
+    ],
     "fieldOverrides": [
         {
             "collectionGroup": "members",

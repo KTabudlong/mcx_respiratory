@@ -1,4 +1,4 @@
-import type { ClassRole } from '@/types';
+import type { ClassRole, Post } from '@/types';
 
 // Class permissions are code constants, not data: each one only works once
 // the app and firestore.rules check it. Each class's roles store a list of
@@ -79,4 +79,24 @@ export function assignableRoles(roles: ClassRole[], access: ClassAccess) {
 // Self sign-ups are approved with the lowest-ranked role you can assign.
 export function defaultRole(roles: ClassRole[], access: ClassAccess) {
     return assignableRoles(roles, access).at(-1);
+}
+
+// Mirrors the posts rules: authors edit/delete their own posts; edit_any,
+// delete_any and pin cover everyone's. Archived classes are read-only except
+// for deleting.
+export function postAbilities(
+    post: Pick<Post, 'userId'>,
+    userId: string | undefined,
+    access: ClassAccess,
+    classOpen: boolean,
+) {
+    const isAuthor = post.userId === userId;
+
+    return {
+        canEdit:
+            classOpen &&
+            (isAuthor || hasClassPermission(access, 'posts.edit_any')),
+        canPin: classOpen && hasClassPermission(access, 'posts.pin'),
+        canDelete: isAuthor || hasClassPermission(access, 'posts.delete_any'),
+    };
 }

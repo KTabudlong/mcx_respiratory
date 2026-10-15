@@ -63,6 +63,24 @@ export type UserProfile = {
     deletedAt: Timestamp | null;
 };
 
+// A link to a file or page kept elsewhere (Drive, OneDrive, …).
+export type PostLink = { url: string; label: string };
+
+// classes/{classId}/posts/{postId} — soft-deleted, never hard-deleted.
+// `classId` comes from the path; the author's name is looked up from users.
+export type Post = {
+    id: string;
+    classId: string;
+    userId: string;
+    title: string;
+    body: string;
+    links: PostLink[];
+    pinned: boolean;
+    createdAt: Timestamp;
+    updatedAt: Timestamp;
+    deletedAt: Timestamp | null;
+};
+
 // userContacts/{uid} — private source of truth for the phone + SMS consent:
 // only the owner and super admins can read it.
 export type UserContact = {

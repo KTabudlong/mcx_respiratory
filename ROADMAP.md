@@ -83,9 +83,12 @@
 
 ### Phase 3 — Posts (days 11–14)
 
-- [ ] Reddit-style `board-layout` (top bar, class switcher, right sidebar)
-- [ ] Feed (pinned first, paging 20), create / edit / delete / pin
-- [ ] Loading, empty, error states
+- [x] Reddit-style `board-layout` (top bar, class switcher, user menu, right sidebar with class info + pinned links)
+- [x] Feed (pinned first, "load more" by 20, title search), post page, create / edit / soft delete / pin
+- [x] Loading, empty, error states; archived classes are read-only
+- [x] Posts rules + feed index (`deletedAt`, `pinned` desc, `createdAt` desc)
+- [x] Deploy posts rules + index, 2026-10-15
+- [ ] (User) Manual test: post as a student, edit/delete own post, pin and delete someone else's as a moderator role, archived class is read-only
 
 ### Phase 4 — Threaded comments (days 15–18)
 

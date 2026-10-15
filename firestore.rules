@@ -6,8 +6,8 @@ rules_version = '2';
 // Hierarchy: super admin (admins/{uid}) → class → the class's own roles.
 // Everything a person can do inside a class comes from their one role in
 // that class (classes/{c}/members/{uid}.roleId → classes/{c}/roles/{roleId}).
-// Posts and comments rules arrive with Phases 3 and 4; until then those
-// subcollections stay locked.
+// Comments rules arrive with Phase 4; until then that subcollection stays
+// locked.
 service cloud.firestore {
   match /databases/{database}/documents {
 
@@ -328,7 +328,8 @@ service cloud.firestore {
 
         // Approve a join request or add someone. Foreign keys: class, user
         // (existsAfter: invited accounts are created in the same batch) and
-        // role. The phone is '' or copied from their join request.
+        // role. The phone is '' or copied from their join request or their
+        // contact doc (super admins adding an existing account).
         allow create: if canIn(classId, 'students.manage')
           && incoming().keys().hasOnly([
             'userId', 'roleId', 'phone', 'addedBy', 'createdAt', 'updatedAt'
@@ -340,7 +341,8 @@ service cloud.firestore {
           && exists(rolePath(classId, incoming().roleId))
           && outranks(classId, roleRank(classId, incoming().roleId))
           && (incoming().phone == ''
-            || incoming().phone == get(/databases/$(database)/documents/classes/$(classId)/joinRequests/$(memberId)).data.phone)
+            || incoming().phone == get(/databases/$(database)/documents/classes/$(classId)/joinRequests/$(memberId)).data.phone
+            || incoming().phone == get(docPath('userContacts', memberId)).data.phone)
           && incoming().createdAt == request.time
           && incoming().updatedAt == request.time;
 
@@ -385,6 +387,85 @@ service cloud.firestore {
         // Cancel (requester), reject or approve (students.manage).
         allow delete: if isOwner(requestId) || canIn(classId, 'students.manage');
         allow update: if false;
+      }
+
+      // ----- posts (soft-deleted, never hard-deleted) -----
+
+      match /posts/{postId} {
+        function classIsOpen() {
+          return get(/databases/$(database)/documents/classes/$(classId)).data.archivedAt == null;
+        }
+
+        function isAuthor() {
+          return resource.data.userId == request.auth.uid;
+        }
+
+        // Rules can't loop over a list, so each link's shape is checked in
+        // the app (and links render as http(s) only).
+        function hasValidContent(data) {
+          return data.title is string
+            && data.title.trim().size() > 0
+            && data.title.size() <= 200
+            && data.body is string
+            && data.body.size() <= 10000
+            && data.links is list
+            && data.links.size() <= 10;
+        }
+
+        // Feed queries filter deletedAt == null; soft-deleted posts are
+        // visible to their author and moderators.
+        allow read: if inClass(classId)
+          && (resource.data.deletedAt == null
+            || isAuthor()
+            || canIn(classId, 'posts.delete_any'));
+
+        allow create: if canIn(classId, 'posts.create')
+          && classIsOpen()
+          && incoming().keys().hasOnly([
+            'userId', 'title', 'body', 'links', 'pinned',
+            'createdAt', 'updatedAt', 'deletedAt'
+          ])
+          && incoming().userId == request.auth.uid
+          && hasValidContent(incoming())
+          && incoming().pinned is bool
+          && (incoming().pinned == false || canIn(classId, 'posts.pin'))
+          && incoming().createdAt == request.time
+          && incoming().updatedAt == request.time
+          && incoming().deletedAt == null;
+
+        // Edit: the author (still in the class) or posts.edit_any. Pinning
+        // can ride along only with posts.pin.
+        allow update: if resource.data.deletedAt == null
+          && classIsOpen()
+          && ((isAuthor() && inClass(classId)) || canIn(classId, 'posts.edit_any'))
+          && changedKeys().hasOnly(['title', 'body', 'links', 'pinned', 'updatedAt'])
+          && hasValidContent(incoming())
+          && (!('pinned' in changedKeys()) || canIn(classId, 'posts.pin'))
+          && incoming().pinned is bool
+          && incoming().updatedAt == request.time;
+
+        // Pin / unpin.
+        allow update: if resource.data.deletedAt == null
+          && canIn(classId, 'posts.pin')
+          && changedKeys().hasOnly(['pinned', 'updatedAt'])
+          && incoming().pinned is bool
+          && incoming().updatedAt == request.time;
+
+        // Soft delete: the author (still in the class) or posts.delete_any.
+        allow update: if resource.data.deletedAt == null
+          && ((isAuthor() && inClass(classId)) || canIn(classId, 'posts.delete_any'))
+          && changedKeys().hasOnly(['deletedAt', 'updatedAt'])
+          && incoming().deletedAt == request.time
+          && incoming().updatedAt == request.time;
+
+        // Restore: moderators only.
+        allow update: if resource.data.deletedAt != null
+          && canIn(classId, 'posts.delete_any')
+          && changedKeys().hasOnly(['deletedAt', 'updatedAt'])
+          && incoming().deletedAt == null
+          && incoming().updatedAt == request.time;
+
+        allow delete: if false;
       }
     }
   }

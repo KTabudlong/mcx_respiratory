@@ -46,6 +46,31 @@ export async function approveJoinRequest(
     await batch.commit();
 }
 
+// Super admins only (they can list users and read contacts): adds an existing
+// account, copying the phone from their contact doc. A pending join request
+// for this class is cleared in the same batch.
+export async function addExistingMember(
+    classId: string,
+    member: { userId: string; roleId: string; phone: string },
+    addedBy: string,
+    hasJoinRequest: boolean,
+) {
+    const batch = writeBatch(db);
+
+    batch.set(memberRef(classId, member.userId), {
+        ...member,
+        addedBy,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+    });
+
+    if (hasJoinRequest) {
+        batch.delete(joinRequestRef(classId, member.userId));
+    }
+
+    await batch.commit();
+}
+
 export function rejectJoinRequest(request: JoinRequest) {
     return deleteDoc(joinRequestRef(request.classId, request.userId));
 }

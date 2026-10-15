@@ -188,7 +188,7 @@ userContacts/{uid}               1:1 with users, private (SMS consent)
   - **Exactly one role per person per class** (user decision) → rules `get()` the role directly; no stored permission copies, and editing a role's permissions applies to everyone instantly. A Treasurer is still a student — their role just includes `posts.create`.
   - Doc ID = uid (rules check membership with one `exists()`); `userId` repeats it for collection-group queries ("my classes", index on `members.userId`).
   - `addedBy`: uid of whoever approved the join request / added them (audit).
-  - `phone`: copy of the member's phone (E.164 or `''`) so **all classmates can see it** (user decision: promotes communication). Rules can't check "shares a class" on `userContacts`, so the number is copied per membership. Written by the member themselves (profile save updates every membership in one batch) and on approval (copied from the join request). This is the one deliberate denormalization.
+  - `phone`: copy of the member's phone (E.164 or `''`) so **all classmates can see it** (user decision: promotes communication). Rules can't check "shares a class" on `userContacts`, so the number is copied per membership. Written by the member themselves (profile save updates every membership in one batch), on approval (copied from the join request), and when a super admin adds an existing account with "Add existing user" (copied from their `userContacts`; this is also how the super admin joins a class themselves). This is the one deliberate denormalization.
   - Removing someone from a class deletes the pivot doc; their posts stay.
 - `classes/{classId}/joinRequests/{uid}`: `{ userId, phone, createdAt }`
   - Sign-up's profile step asks the student to **pick their class** (active classes). Anyone whose role in that class has `students.manage` approves (batch: create member with a role ranked below theirs, defaulting to the lowest, + delete request) or rejects (delete request). Pending users can also request from `/pending`.
@@ -295,7 +295,7 @@ Two levels (decided 2026-10-08). Class managers see a **class switcher** listing
 
 - `/login`, `/signup` (the stepper; also hosts the verify-email and profile steps) and `/forgot-password` use `auth-layout.tsx` and are open to anyone.
 - `/pending` is shown to signed-in users with no class yet ("waiting for an admin to add you to a class").
-- `/posts/new` and `/posts/:id/edit` require the `posts.create` permission or post ownership.
+- Board routes mirror the Firestore paths: `/` opens your last-used (or newest) class; `/classes/:classId` is the feed, `/classes/:classId/posts/:postId` the post page, `/classes/:classId/posts/new` needs `posts.create`, and `.../posts/:postId/edit` needs authorship or `posts.edit_any`. All of them require membership in that class (or super admin).
 - `/profile` lets users change their name and contact number (with SMS opt-in).
 - Each page handles loading, empty and error states.
 - An `AuthProvider` context exposes `user`, `profile` and `can(permission)`.

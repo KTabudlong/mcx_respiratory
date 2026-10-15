@@ -1,7 +1,8 @@
-import { UserPlus } from 'lucide-react';
+import { UserCheck, UserPlus } from 'lucide-react';
 import { useState } from 'react';
 import { useParams } from 'react-router';
 
+import { AddMemberDialog } from '@/components/admin/add-member-dialog';
 import { ClassPageHeader } from '@/components/admin/class-page-header';
 import { InviteMemberDialog } from '@/components/admin/invite-member-dialog';
 import { JoinRequestsList } from '@/components/admin/join-requests-list';
@@ -27,7 +28,10 @@ import { compareByName, matchesName } from '@/lib/user-filters';
 import type { ClassMember, ClassRole, JoinRequest, UserProfile } from '@/types';
 
 type DialogState =
-    { type: 'invite' } | { type: 'remove'; row: MemberRow } | null;
+    | { type: 'invite' }
+    | { type: 'add-existing' }
+    | { type: 'remove'; row: MemberRow }
+    | null;
 
 // /admin/classes/:classId/students — students.view or students.manage
 // (guarded in the router). Phones come from the membership copy, which every
@@ -106,13 +110,27 @@ export default function ClassStudents() {
                 description={`${members.data.length} in this class`}
                 action={
                     canManage && (
-                        <Button
-                            disabled={assignable.length === 0}
-                            onClick={() => setDialog({ type: 'invite' })}
-                        >
-                            <UserPlus aria-hidden />
-                            Invite student
-                        </Button>
+                        <div className="flex flex-wrap gap-2">
+                            {access.isSuperAdmin && (
+                                <Button
+                                    variant="outline"
+                                    disabled={assignable.length === 0}
+                                    onClick={() =>
+                                        setDialog({ type: 'add-existing' })
+                                    }
+                                >
+                                    <UserCheck aria-hidden />
+                                    Add existing user
+                                </Button>
+                            )}
+                            <Button
+                                disabled={assignable.length === 0}
+                                onClick={() => setDialog({ type: 'invite' })}
+                            >
+                                <UserPlus aria-hidden />
+                                Invite student
+                            </Button>
+                        </div>
                     )
                 }
             />
@@ -161,6 +179,21 @@ export default function ClassStudents() {
                     roles={assignable}
                     defaultRoleId={defaultRoleId}
                     invitedBy={me.uid}
+                    onClose={() => setDialog(null)}
+                />
+            )}
+            {dialog?.type === 'add-existing' && me && (
+                <AddMemberDialog
+                    classId={classId}
+                    memberIds={
+                        new Set(members.data.map((member) => member.userId))
+                    }
+                    joinRequestIds={
+                        new Set(requests.data.map((request) => request.userId))
+                    }
+                    roles={assignable}
+                    defaultRoleId={defaultRoleId}
+                    currentUserId={me.uid}
                     onClose={() => setDialog(null)}
                 />
             )}
