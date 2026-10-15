@@ -39,19 +39,26 @@ export function getSignupStep({
 
 export type UserStatus = 'active' | 'pending' | 'deactivated';
 
-// Pending = in no class and no app-wide role (app-wide roles apply in every
-// class).
+// Pending = in no class (super admins are never pending).
 export function getUserStatus(
     profile: UserProfile,
     classCount: number,
+    isSuperAdmin = false,
 ): UserStatus {
     if (profile.deletedAt !== null) {
         return 'deactivated';
     }
 
-    return classCount > 0 || profile.roleIds.length > 0 ? 'active' : 'pending';
+    return classCount > 0 || isSuperAdmin ? 'active' : 'pending';
 }
 
-export function isApproved(profile: UserProfile | null, classCount: number) {
-    return profile !== null && getUserStatus(profile, classCount) === 'active';
+export function isApproved(
+    profile: UserProfile | null,
+    classCount: number,
+    isSuperAdmin: boolean,
+) {
+    return (
+        profile !== null &&
+        getUserStatus(profile, classCount, isSuperAdmin) === 'active'
+    );
 }

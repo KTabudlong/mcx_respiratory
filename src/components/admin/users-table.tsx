@@ -1,4 +1,5 @@
-import { RoleBadge } from '@/components/admin/role-badge';
+import { Link } from 'react-router';
+
 import { UserStatusBadge } from '@/components/admin/user-status-badge';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -16,59 +17,37 @@ import { cn } from '@/lib/utils';
 import type {
     ClassGroup,
     ClassMember,
-    Role,
     UserContact,
     UserProfile,
 } from '@/types';
 
-function RoleBadges({
-    roleIds,
-    roleById,
-}: {
-    roleIds: string[];
-    roleById: Map<string, Role>;
-}) {
-    return roleIds.map((id) => {
-        const role = roleById.get(id);
-
-        return role ? (
-            <RoleBadge key={id} role={role} />
-        ) : (
-            <Badge key={id} variant="outline">
-                {id}
-            </Badge>
-        );
-    });
-}
-
+// Super admin's view of every account across all classes.
 export function UsersTable({
     users,
+    allUsers,
     membershipsByUser,
-    emptyMessage,
+    superAdminIds,
     contacts,
     classes,
-    roles,
     currentUserId,
-    canManage,
-    onEdit,
+    emptyMessage,
     onToggleActive,
 }: {
     users: UserProfile[];
+    allUsers: UserProfile[];
     membershipsByUser: Map<string, ClassMember[]>;
-    emptyMessage: string;
+    superAdminIds: Set<string>;
     contacts: UserContact[];
     classes: ClassGroup[];
-    roles: Role[];
     currentUserId: string | undefined;
-    canManage: boolean;
-    onEdit: (user: UserProfile) => void;
+    emptyMessage: string;
     onToggleActive: (user: UserProfile) => void;
 }) {
     const phoneByUser = new Map(
         contacts.map((contact) => [contact.id, contact.phone]),
     );
     const classById = new Map(classes.map((item) => [item.id, item]));
-    const roleById = new Map(roles.map((role) => [role.id, role]));
+    const userById = new Map(allUsers.map((user) => [user.id, user]));
 
     return (
         <div className="rounded-md border">
@@ -77,21 +56,17 @@ export function UsersTable({
                     <TableRow>
                         <TableHead>Name</TableHead>
                         <TableHead>Phone</TableHead>
-                        <TableHead>Classes and roles</TableHead>
-                        <TableHead>App-wide roles</TableHead>
+                        <TableHead>Classes</TableHead>
+                        <TableHead>Invited by</TableHead>
                         <TableHead>Status</TableHead>
-                        {canManage && (
-                            <TableHead className="text-right">
-                                Actions
-                            </TableHead>
-                        )}
+                        <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
                 </TableHeader>
                 <TableBody>
                     {users.length === 0 && (
                         <TableRow>
                             <TableCell
-                                colSpan={canManage ? 6 : 5}
+                                colSpan={6}
                                 className="py-8 text-center text-muted-foreground"
                             >
                                 {emptyMessage}
@@ -101,9 +76,17 @@ export function UsersTable({
                     {users.map((user) => {
                         const memberships =
                             membershipsByUser.get(user.id) ?? [];
-                        const status = getUserStatus(user, memberships.length);
+                        const isSuperAdmin = superAdminIds.has(user.id);
+                        const status = getUserStatus(
+                            user,
+                            memberships.length,
+                            isSuperAdmin,
+                        );
                         const isMe = user.id === currentUserId;
                         const phone = phoneByUser.get(user.id);
+                        const inviter = user.createdBy
+                            ? userById.get(user.createdBy)
+                            : undefined;
 
                         return (
                             <TableRow
@@ -114,9 +97,12 @@ export function UsersTable({
                                 )}
                             >
                                 <TableCell>
-                                    <div className="font-medium">
+                                    <div className="flex items-center gap-2 font-medium">
                                         {user.lastName}, {user.firstName}
                                         {isMe && ' (you)'}
+                                        {isSuperAdmin && (
+                                            <Badge>Super admin</Badge>
+                                        )}
                                     </div>
                                     <div className="text-xs text-muted-foreground">
                                         {user.email}
@@ -126,68 +112,49 @@ export function UsersTable({
                                     {phone ? formatPhone(phone) : '—'}
                                 </TableCell>
                                 <TableCell>
-                                    <ul className="grid gap-1">
+                                    <div className="flex flex-wrap gap-1">
+                                        {memberships.length === 0 && '—'}
                                         {memberships.map((membership) => (
-                                            <li
+                                            <Badge
                                                 key={membership.classId}
-                                                className="flex flex-wrap items-center gap-1"
+                                                variant="secondary"
+                                                asChild
                                             >
-                                                <Badge variant="secondary">
+                                                <Link
+                                                    to={`/admin/classes/${membership.classId}/students`}
+                                                >
                                                     {classById.get(
                                                         membership.classId,
                                                     )?.name ??
                                                         membership.classId}
-                                                </Badge>
-                                                <RoleBadges
-                                                    roleIds={membership.roleIds}
-                                                    roleById={roleById}
-                                                />
-                                            </li>
+                                                </Link>
+                                            </Badge>
                                         ))}
-                                    </ul>
-                                </TableCell>
-                                <TableCell>
-                                    <div className="flex flex-wrap gap-1">
-                                        <RoleBadges
-                                            roleIds={user.roleIds}
-                                            roleById={roleById}
-                                        />
                                     </div>
+                                </TableCell>
+                                <TableCell className="text-sm text-muted-foreground">
+                                    {user.createdBy === null
+                                        ? 'Signed up'
+                                        : inviter
+                                          ? `${inviter.firstName} ${inviter.lastName}`
+                                          : 'Unknown'}
                                 </TableCell>
                                 <TableCell>
                                     <UserStatusBadge status={status} />
                                 </TableCell>
-                                {canManage && (
-                                    <TableCell className="text-right whitespace-nowrap">
+                                <TableCell className="text-right whitespace-nowrap">
+                                    {!isMe && (
                                         <Button
                                             size="sm"
-                                            variant={
-                                                status === 'pending'
-                                                    ? 'default'
-                                                    : 'ghost'
-                                            }
-                                            disabled={status === 'deactivated'}
-                                            onClick={() => onEdit(user)}
+                                            variant="ghost"
+                                            onClick={() => onToggleActive(user)}
                                         >
-                                            {status === 'pending'
-                                                ? 'Approve'
-                                                : 'Edit'}
+                                            {status === 'deactivated'
+                                                ? 'Restore'
+                                                : 'Deactivate'}
                                         </Button>
-                                        {!isMe && (
-                                            <Button
-                                                size="sm"
-                                                variant="ghost"
-                                                onClick={() =>
-                                                    onToggleActive(user)
-                                                }
-                                            >
-                                                {status === 'deactivated'
-                                                    ? 'Restore'
-                                                    : 'Deactivate'}
-                                            </Button>
-                                        )}
-                                    </TableCell>
-                                )}
+                                    )}
+                                </TableCell>
                             </TableRow>
                         );
                     })}

@@ -1,20 +1,23 @@
 import { Navigate } from 'react-router';
 
-import { ADMIN_NAV } from '@/components/admin/admin-sidebar';
 import { useAuth } from '@/hooks/use-auth';
 
-// The dashboard arrives in Phase 5; until then open the first allowed section.
+// The dashboard arrives in Phase 5; until then super admins open the class
+// list and everyone else their first class.
 export default function AdminIndex() {
-    const { can } = useAuth();
-    const first = ADMIN_NAV.find((item) => can(item.permission));
+    const { isSuperAdmin, adminClassIds } = useAuth();
 
-    if (first) {
-        return <Navigate to={first.to} replace />;
+    if (isSuperAdmin) {
+        return <Navigate to="/admin/classes" replace />;
+    }
+
+    if (adminClassIds.length > 0) {
+        return <Navigate to={`/admin/classes/${adminClassIds[0]}`} replace />;
     }
 
     return (
         <p className="text-sm text-muted-foreground">
-            Moderation tools for your role arrive in a later update.
+            Your role doesn't include admin tools yet.
         </p>
     );
 }

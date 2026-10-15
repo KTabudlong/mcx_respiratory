@@ -1,7 +1,8 @@
 import type { Timestamp } from 'firebase/firestore';
 import { describe, expect, it } from 'vitest';
 
-import { filterUsers } from '@/lib/user-filters';
+import type { UserFilters } from '@/lib/user-filters';
+import { filterUsers, matchesName } from '@/lib/user-filters';
 import type { UserProfile } from '@/types';
 
 function makeUser(overrides: Partial<UserProfile>): UserProfile {
@@ -10,8 +11,8 @@ function makeUser(overrides: Partial<UserProfile>): UserProfile {
         firstName: 'First',
         lastName: 'Last',
         email: 'x@student.ccc.edu',
-        roleIds: [],
-        permissions: [],
+        createdBy: null,
+        createdInClassId: null,
         createdAt: {} as Timestamp,
         updatedAt: {} as Timestamp,
         deletedAt: null,
@@ -28,66 +29,47 @@ const users = [
         lastName: 'Mariano',
         deletedAt: {} as Timestamp,
     }),
+    makeUser({ id: 'd', firstName: 'Kynt', lastName: 'Zeta' }),
 ];
 
-// b is in no class → pending.
+// b is in no class → pending; d is in no class but is a super admin.
 const classCounts = new Map([
     ['a', 1],
     ['c', 2],
 ]);
+const superAdminIds = new Set(['d']);
 
-const ids = (list: UserProfile[]) => list.map((user) => user.id);
+const ids = (filters: UserFilters) =>
+    filterUsers(users, classCounts, superAdminIds, filters).map(
+        (user) => user.id,
+    );
+
+describe('matchesName', () => {
+    it('matches first, last or "first last", case-insensitively', () => {
+        expect(matchesName(users[0], 'SANT')).toBe(true);
+        expect(matchesName(users[1], 'john abb')).toBe(true);
+        expect(matchesName(users[1], 'abbott john')).toBe(false);
+        expect(matchesName(users[1], '   ')).toBe(true);
+    });
+});
 
 describe('filterUsers', () => {
     it('sorts by last name, then first name', () => {
-        expect(
-            ids(filterUsers(users, classCounts, { search: '', status: 'all' })),
-        ).toEqual(['b', 'c', 'a']);
+        expect(ids({ search: '', status: 'all' })).toEqual([
+            'b',
+            'c',
+            'a',
+            'd',
+        ]);
     });
 
-    it('searches first and last names, case-insensitively', () => {
-        expect(
-            ids(
-                filterUsers(users, classCounts, {
-                    search: 'MARI',
-                    status: 'all',
-                }),
-            ),
-        ).toEqual(['c', 'a']);
-        expect(
-            ids(
-                filterUsers(users, classCounts, {
-                    search: 'john abb',
-                    status: 'all',
-                }),
-            ),
-        ).toEqual(['b']);
+    it('searches names', () => {
+        expect(ids({ search: 'MARI', status: 'all' })).toEqual(['c', 'a']);
     });
 
-    it('filters by status', () => {
-        expect(
-            ids(
-                filterUsers(users, classCounts, {
-                    search: '',
-                    status: 'pending',
-                }),
-            ),
-        ).toEqual(['b']);
-        expect(
-            ids(
-                filterUsers(users, classCounts, {
-                    search: '',
-                    status: 'deactivated',
-                }),
-            ),
-        ).toEqual(['c']);
-        expect(
-            ids(
-                filterUsers(users, classCounts, {
-                    search: '',
-                    status: 'active',
-                }),
-            ),
-        ).toEqual(['a']);
+    it('filters by status, counting super admins as active', () => {
+        expect(ids({ search: '', status: 'pending' })).toEqual(['b']);
+        expect(ids({ search: '', status: 'deactivated' })).toEqual(['c']);
+        expect(ids({ search: '', status: 'active' })).toEqual(['a', 'd']);
     });
 });

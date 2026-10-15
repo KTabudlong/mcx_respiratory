@@ -12,44 +12,59 @@ export type ClassGroup = {
     updatedAt: Timestamp;
 };
 
-// roles/{slug} — master/reference table; permissions are keys from
-// src/lib/permissions.ts.
-export type Role = {
+// classes/{classId}/roles/{roleId} — each class's own roles. Higher rank =
+// more power; you only manage roles ranked below yours. Permissions are keys
+// from src/lib/permissions.ts. `classId` comes from the document path.
+export type ClassRole = {
     id: string;
+    classId: string;
     name: string;
     color: string;
+    rank: number;
     permissions: string[];
     createdAt: Timestamp;
     updatedAt: Timestamp;
 };
 
-// users/{uid} — see the build plan § Data model. roleIds are app-wide roles
-// (they apply in every class); class roles live on ClassMember.
+// classes/{classId}/members/{uid} — the class ↔ user pivot, exactly one role
+// per person per class. `phone` is a copy of the member's phone so
+// classmates can see it. `id` is the uid; `classId` comes from the path.
+export type ClassMember = {
+    id: string;
+    classId: string;
+    userId: string;
+    roleId: string;
+    phone: string;
+    addedBy: string;
+    createdAt: Timestamp;
+    updatedAt: Timestamp;
+};
+
+// classes/{classId}/joinRequests/{uid} — a pending sign-up asking to join.
+export type JoinRequest = {
+    id: string;
+    classId: string;
+    userId: string;
+    phone: string;
+    createdAt: Timestamp;
+};
+
+// users/{uid} — see the build plan § Data model. createdBy is null for self
+// sign-up, otherwise who invited them (and into which class).
 export type UserProfile = {
     id: string;
     firstName: string;
     lastName: string;
     email: string;
-    roleIds: string[];
-    permissions: string[];
+    createdBy: string | null;
+    createdInClassId: string | null;
     createdAt: Timestamp;
     updatedAt: Timestamp;
     deletedAt: Timestamp | null;
 };
 
-// classes/{classId}/members/{uid} — the class ↔ user pivot. `id` is the uid;
-// `classId` comes from the document path, not a stored field.
-export type ClassMember = {
-    id: string;
-    classId: string;
-    userId: string;
-    roleIds: string[];
-    permissions: string[];
-    createdAt: Timestamp;
-    updatedAt: Timestamp;
-};
-
-// userContacts/{uid} — private: only the owner and users.view can read it.
+// userContacts/{uid} — private source of truth for the phone + SMS consent:
+// only the owner and super admins can read it.
 export type UserContact = {
     id: string;
     phone: string;

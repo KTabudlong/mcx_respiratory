@@ -1,23 +1,25 @@
-import { Plus, Search } from 'lucide-react';
 import { useState } from 'react';
 
-import { UserFormDialog } from '@/components/admin/user-form-dialog';
 import { UsersTable } from '@/components/admin/users-table';
 import { ConfirmDialog } from '@/components/common/confirm-dialog';
 import { FormMessage } from '@/components/common/form-message';
 import { PageLoader } from '@/components/common/page-loader';
+import { SearchInput } from '@/components/common/search-input';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { useAuth } from '@/hooks/use-auth';
 import { useCollection } from '@/hooks/use-collection';
-import { useAllMemberships } from '@/hooks/use-memberships';
+import { useAllMemberships } from '@/hooks/use-collection-group';
 import type { UserStatus } from '@/lib/account-status';
 import { getUserStatus } from '@/lib/account-status';
 import { setUserDeactivated } from '@/lib/admin-users';
 import { getErrorMessage } from '@/lib/errors';
-import { groupMembershipsByUser } from '@/lib/memberships';
 import { filterUsers } from '@/lib/user-filters';
-import type { ClassGroup, Role, UserContact, UserProfile } from '@/types';
+import type {
+    ClassGroup,
+    ClassMember,
+    UserContact,
+    UserProfile,
+} from '@/types';
 
 const STATUS_FILTERS: { value: UserStatus | 'all'; label: string }[] = [
     { value: 'all', label: 'All' },
@@ -26,82 +28,78 @@ const STATUS_FILTERS: { value: UserStatus | 'all'; label: string }[] = [
     { value: 'deactivated', label: 'Deactivated' },
 ];
 
-type DialogState =
-    | { type: 'form'; user: UserProfile | null }
-    | { type: 'toggle-active'; user: UserProfile }
-    | null;
+function groupByUser(memberships: ClassMember[]) {
+    const byUser = new Map<string, ClassMember[]>();
 
+    for (const membership of memberships) {
+        byUser.set(membership.userId, [
+            ...(byUser.get(membership.userId) ?? []),
+            membership,
+        ]);
+    }
+
+    return byUser;
+}
+
+// Super admin only (guarded in the router). Adding people and approving join
+// requests happen per class; this page is for finding anyone and
+// deactivating accounts app-wide.
 export default function AdminUsers() {
-    const { profile: me, can } = useAuth();
+    const { user: me } = useAuth();
     const users = useCollection<UserProfile>('users');
+    const admins = useCollection<{ id: string }>('admins');
     const memberships = useAllMemberships(true);
     const contacts = useCollection<UserContact>('userContacts');
     const classes = useCollection<ClassGroup>('classes');
-    const roles = useCollection<Role>('roles');
     const [search, setSearch] = useState('');
     const [status, setStatus] = useState<UserStatus | 'all'>('all');
-    const [dialog, setDialog] = useState<DialogState>(null);
+    const [toggling, setToggling] = useState<UserProfile | null>(null);
 
-    const canManage = can('users.manage');
     const loading =
         users.loading ||
+        admins.loading ||
         memberships.loading ||
         contacts.loading ||
-        classes.loading ||
-        roles.loading;
+        classes.loading;
     const error =
         users.error ??
+        admins.error ??
         memberships.error ??
         contacts.error ??
-        classes.error ??
-        roles.error;
+        classes.error;
 
-    const membershipsByUser = groupMembershipsByUser(memberships.data);
+    const superAdminIds = new Set(admins.data.map((admin) => admin.id));
+    const membershipsByUser = groupByUser(memberships.data);
     const classCountByUser = new Map(
         [...membershipsByUser].map(([uid, list]) => [uid, list.length]),
     );
     const pendingCount = users.data.filter(
         (user) =>
-            getUserStatus(user, classCountByUser.get(user.id) ?? 0) ===
-            'pending',
+            getUserStatus(
+                user,
+                classCountByUser.get(user.id) ?? 0,
+                superAdminIds.has(user.id),
+            ) === 'pending',
     ).length;
 
     return (
         <div className="grid gap-4">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                    <h1 className="text-2xl font-semibold">Users</h1>
-                    <p className="text-sm text-muted-foreground">
-                        {users.data.length} total
-                        {pendingCount > 0 &&
-                            ` · ${pendingCount} waiting for approval`}
-                    </p>
-                </div>
-                {canManage && (
-                    <Button
-                        onClick={() => setDialog({ type: 'form', user: null })}
-                    >
-                        <Plus aria-hidden />
-                        Add user
-                    </Button>
-                )}
+            <div>
+                <h1 className="text-2xl font-semibold">All users</h1>
+                <p className="text-sm text-muted-foreground">
+                    {users.data.length} total
+                    {pendingCount > 0 &&
+                        ` · ${pendingCount} not in a class yet`}
+                    . Approve and invite people from each class's Students page.
+                </p>
             </div>
 
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-                <div className="relative sm:max-w-xs sm:flex-1">
-                    <Search
-                        className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground"
-                        aria-hidden
-                    />
-                    <Input
-                        type="search"
-                        placeholder="Search first or last name"
-                        aria-label="Search users by first or last name"
-                        className="pl-8"
-                        value={search}
-                        onChange={(event) => setSearch(event.target.value)}
-                    />
-                </div>
+                <SearchInput
+                    value={search}
+                    onChange={setSearch}
+                    label="Search users by first or last name"
+                />
                 <div
                     className="flex flex-wrap gap-1"
                     role="group"
@@ -129,64 +127,44 @@ export default function AdminUsers() {
                 <PageLoader />
             ) : (
                 <UsersTable
-                    users={filterUsers(users.data, classCountByUser, {
-                        search,
-                        status,
-                    })}
+                    users={filterUsers(
+                        users.data,
+                        classCountByUser,
+                        superAdminIds,
+                        { search, status },
+                    )}
+                    allUsers={users.data}
                     membershipsByUser={membershipsByUser}
+                    superAdminIds={superAdminIds}
+                    contacts={contacts.data}
+                    classes={classes.data}
+                    currentUserId={me?.uid}
                     emptyMessage={
                         users.data.length === 0
                             ? 'No users yet.'
                             : 'No users match your search.'
                     }
-                    contacts={contacts.data}
-                    classes={classes.data}
-                    roles={roles.data}
-                    currentUserId={me?.id}
-                    canManage={canManage}
-                    onEdit={(user) => setDialog({ type: 'form', user })}
-                    onToggleActive={(user) =>
-                        setDialog({ type: 'toggle-active', user })
-                    }
+                    onToggleActive={setToggling}
                 />
             )}
 
-            {dialog?.type === 'form' && (
-                <UserFormDialog
-                    user={dialog.user}
-                    memberships={
-                        dialog.user
-                            ? (membershipsByUser.get(dialog.user.id) ?? [])
-                            : []
-                    }
-                    users={users.data}
-                    classes={classes.data}
-                    roles={roles.data}
-                    ownPermissions={me?.permissions ?? []}
-                    onClose={() => setDialog(null)}
-                />
-            )}
-            {dialog?.type === 'toggle-active' &&
-                (dialog.user.deletedAt === null ? (
+            {toggling &&
+                (toggling.deletedAt === null ? (
                     <ConfirmDialog
-                        title={`Deactivate ${dialog.user.firstName} ${dialog.user.lastName}?`}
-                        description="They'll be locked out of the board right away. Their posts and comments stay, and you can restore them later."
+                        title={`Deactivate ${toggling.firstName} ${toggling.lastName}?`}
+                        description="They'll be locked out of every class right away. Their posts, comments and memberships stay, and you can restore them later."
                         confirmLabel="Deactivate"
                         destructive
-                        onConfirm={() =>
-                            setUserDeactivated(dialog.user.id, true)
-                        }
-                        onClose={() => setDialog(null)}
+                        onConfirm={() => setUserDeactivated(toggling.id, true)}
+                        onClose={() => setToggling(null)}
                     />
                 ) : (
                     <ConfirmDialog
-                        title={`Restore ${dialog.user.firstName} ${dialog.user.lastName}?`}
+                        title={`Restore ${toggling.firstName} ${toggling.lastName}?`}
                         description="They get their access back with the same classes and roles."
                         confirmLabel="Restore"
-                        onConfirm={() =>
-                            setUserDeactivated(dialog.user.id, false)
-                        }
-                        onClose={() => setDialog(null)}
+                        onConfirm={() => setUserDeactivated(toggling.id, false)}
+                        onClose={() => setToggling(null)}
                     />
                 ))}
         </div>

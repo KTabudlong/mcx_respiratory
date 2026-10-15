@@ -20,6 +20,7 @@ export function RequireAuth({
         profile,
         contact,
         memberships,
+        isSuperAdmin,
         loading,
         error,
     } = useAuth();
@@ -57,7 +58,10 @@ export function RequireAuth({
         return <Navigate to="/signup" replace />;
     }
 
-    if (!allowPending && !isApproved(profile, memberships.length)) {
+    if (
+        !allowPending &&
+        !isApproved(profile, memberships.length, isSuperAdmin)
+    ) {
         return <Navigate to="/pending" replace />;
     }
 

@@ -28,7 +28,7 @@
 
 **Planning last reviewed:** 2026-10-08
 
-**Current milestone:** Phase 2b — implement per-class roles (designed 2026-10-08), then Phase 3 (posts).
+**Current milestone:** Phase 2b — per-class roles built and deployed; your manual test next, then Phase 3 (posts).
 
 ### Planning — data model + UI ✅ 2026-10-08
 
@@ -69,16 +69,17 @@
 - [x] Deploy the class-anchored rules + `members.userId` collection-group index; remove the leftover `classIds` field from the admin's user doc (2026-10-08)
 - [x] **Per-class roles designed** (2026-10-08, plan § Data model + § Admin panel): super admin (`admins/{uid}`) → class → class roles (`classes/{c}/roles`, ranked); one role per member; class permissions `admin.access`, `students.view`, `students.manage`, `roles.manage` + content; join requests at sign-up; `users.createdBy`, `members.addedBy`; phone copy on memberships for classmates
 
-### Phase 2b — Per-class roles (next build session)
+### Phase 2b — Per-class roles
 
-- [ ] Rules: `isSuperAdmin`, `canIn` via member → class role, rank checks, no escalation, join requests, `createdBy`/`addedBy`, member phone copy; validate + deploy (ask first)
-- [ ] Data: create `admins/{uid}` for the user; delete global `roles` + interim fields (`users.roleIds`/`permissions`) (ask first)
-- [ ] Types + permissions constants (`students.*`, `admin.access`), `canIn` / rank helpers + tests
-- [ ] Sign-up profile step: pick a class → join request; `/pending` copy; profile save syncs phone to memberships
-- [ ] Admin shell: class switcher (classes with `admin.access`), super admin sections
-- [ ] Class pages: Students (roster, join requests, add/create, change role, remove), Roles (rank, color, permission checkboxes)
-- [ ] Super admin pages: Classes (create with default Student + President roles), Users (deactivate/restore, createdBy)
-- [ ] (User) Manual test: create class, make yourself/someone President, sign up a test student who picks the class, approve as President, give Treasurer `admin.access` without `students.manage`
+- [x] Rules: `isSuperAdmin`, `canIn` via member → class role, rank checks, no escalation, join requests, `createdBy`/`createdInClassId`/`addedBy`, member phone copy; validated
+- [x] Deploy rules + collection-group indexes (`members.userId`, `joinRequests.userId`), 2026-10-15
+- [x] Data: create `admins/{uid}` for the user; delete global `roles` + interim fields (`users.roleIds`/`permissions`), 2026-10-15
+- [x] Types + permissions constants (`students.*`, `admin.access`), rank / grant helpers + tests
+- [x] Sign-up profile step: pick a class → join request; `/pending` request/cancel; profile save syncs phone to memberships
+- [x] Admin shell: class switcher (classes with `admin.access`), super admin sections
+- [x] Class pages: Students (roster with phones, join requests, invite, change role, remove), Roles (rank, color, permission checkboxes)
+- [x] Super admin pages: Classes (create with the default Student role), Users (deactivate/restore, invited by)
+- [ ] (User) Manual test: create class, add President + Treasurer roles, invite a President, sign up a test student who picks the class, approve as President, give Treasurer `admin.access` + `students.view` without `students.manage`
 
 ### Phase 3 — Posts (days 11–14)
 
@@ -95,7 +96,6 @@
 - [ ] Dashboard stat cards; breadcrumbs in the admin header
 - [ ] Data table upgrade: filters, sort, column visibility, row selection, bulk actions (incl. "email selected")
 - [ ] User detail tabs (profile, contact, classes/roles, activity); class detail with members
-- [ ] Roles table + permission editor + permissions recalculation
 - [ ] Posts / comments moderation tables (incl. restore)
 
 ### Phase 6 — Polish + launch (days 23–25)

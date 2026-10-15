@@ -1,5 +1,6 @@
 import { Plus } from 'lucide-react';
 import { useState } from 'react';
+import { Link } from 'react-router';
 
 import { ClassFormDialog } from '@/components/admin/class-form-dialog';
 import { ConfirmDialog } from '@/components/common/confirm-dialog';
@@ -15,10 +16,9 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table';
-import { useAuth } from '@/hooks/use-auth';
 import { useCollection } from '@/hooks/use-collection';
-import { useAllMemberships } from '@/hooks/use-memberships';
-import { setClassArchived } from '@/lib/classes';
+import { useAllMemberships } from '@/hooks/use-collection-group';
+import { setClassArchived, sortClasses } from '@/lib/classes';
 import { getErrorMessage } from '@/lib/errors';
 import type { ClassGroup, UserProfile } from '@/types';
 
@@ -27,23 +27,11 @@ type DialogState =
     | { type: 'toggle-archive'; classGroup: ClassGroup }
     | null;
 
-// Active classes first, newest first.
-function sortClasses(classes: ClassGroup[]) {
-    return [...classes].sort(
-        (a, b) =>
-            Number(a.archivedAt !== null) - Number(b.archivedAt !== null) ||
-            b.startYear - a.startYear ||
-            a.name.localeCompare(b.name),
-    );
-}
-
+// Super admin only (guarded in the router).
 export default function AdminClasses() {
-    const { can } = useAuth();
     const classes = useCollection<ClassGroup>('classes');
-    // Member counts need users.view; without it the column is hidden.
-    const showMembers = can('users.view');
-    const users = useCollection<UserProfile>(showMembers ? 'users' : null);
-    const memberships = useAllMemberships(showMembers);
+    const users = useCollection<UserProfile>('users');
+    const memberships = useAllMemberships(true);
     const [dialog, setDialog] = useState<DialogState>(null);
 
     const error = classes.error ?? users.error ?? memberships.error;
@@ -67,7 +55,8 @@ export default function AdminClasses() {
                 <div>
                     <h1 className="text-2xl font-semibold">Classes</h1>
                     <p className="text-sm text-muted-foreground">
-                        Archive old cohorts instead of deleting them.
+                        New classes start with a Student role. Archive old
+                        cohorts instead of deleting them.
                     </p>
                 </div>
                 <Button
@@ -91,7 +80,7 @@ export default function AdminClasses() {
                             <TableRow>
                                 <TableHead>Name</TableHead>
                                 <TableHead>Years</TableHead>
-                                {showMembers && <TableHead>Members</TableHead>}
+                                <TableHead>Members</TableHead>
                                 <TableHead>Status</TableHead>
                                 <TableHead className="text-right">
                                     Actions
@@ -102,7 +91,7 @@ export default function AdminClasses() {
                             {classes.data.length === 0 && (
                                 <TableRow>
                                     <TableCell
-                                        colSpan={showMembers ? 5 : 4}
+                                        colSpan={5}
                                         className="py-8 text-center text-muted-foreground"
                                     >
                                         No classes yet. Add your first cohort.
@@ -112,16 +101,19 @@ export default function AdminClasses() {
                             {sortClasses(classes.data).map((item) => (
                                 <TableRow key={item.id}>
                                     <TableCell className="font-medium">
-                                        {item.name}
+                                        <Link
+                                            to={`/admin/classes/${item.id}`}
+                                            className="underline-offset-4 hover:underline"
+                                        >
+                                            {item.name}
+                                        </Link>
                                     </TableCell>
                                     <TableCell className="whitespace-nowrap">
                                         {item.startYear}–{item.endYear ?? ''}
                                     </TableCell>
-                                    {showMembers && (
-                                        <TableCell>
-                                            {memberCount(item.id)}
-                                        </TableCell>
-                                    )}
+                                    <TableCell>
+                                        {memberCount(item.id)}
+                                    </TableCell>
                                     <TableCell>
                                         <Badge
                                             variant={

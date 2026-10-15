@@ -1,12 +1,13 @@
 import {
-    addDoc,
     collection,
     doc,
     serverTimestamp,
     updateDoc,
+    writeBatch,
 } from 'firebase/firestore';
 
 import { db } from '@/lib/firebase';
+import type { ClassGroup } from '@/types';
 
 export type ClassInput = {
     name: string;
@@ -17,6 +18,16 @@ export type ClassInput = {
 export const MIN_CLASS_YEAR = 2000;
 export const MAX_CLASS_YEAR = 2100;
 export const MAX_CLASS_NAME_LENGTH = 80;
+
+// Every new class starts with this role, so join requests can be approved
+// right away. The class adds its other roles itself.
+export const DEFAULT_ROLE = {
+    id: 'student',
+    name: 'Student',
+    color: '#16a34a',
+    rank: 1,
+    permissions: ['posts.create'],
+};
 
 export function validateClass(input: ClassInput) {
     const name = input.name.trim();
@@ -49,14 +60,42 @@ export function validateClass(input: ClassInput) {
     return '';
 }
 
-export function createClass(input: ClassInput) {
-    return addDoc(collection(db, 'classes'), {
+// Active classes first, newest first.
+export function sortClasses(classes: ClassGroup[]) {
+    return [...classes].sort(
+        (a, b) =>
+            Number(a.archivedAt !== null) - Number(b.archivedAt !== null) ||
+            b.startYear - a.startYear ||
+            a.name.localeCompare(b.name),
+    );
+}
+
+export function activeClasses(classes: ClassGroup[]) {
+    return sortClasses(classes).filter((item) => item.archivedAt === null);
+}
+
+// The class and its default Student role in one batch.
+export async function createClass(input: ClassInput) {
+    const batch = writeBatch(db);
+    const classRef = doc(collection(db, 'classes'));
+    const { id, ...role } = DEFAULT_ROLE;
+
+    batch.set(classRef, {
         ...input,
         name: input.name.trim(),
         archivedAt: null,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
     });
+    batch.set(doc(db, 'classes', classRef.id, 'roles', id), {
+        ...role,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+    });
+
+    await batch.commit();
+
+    return classRef.id;
 }
 
 export function updateClass(id: string, input: ClassInput) {

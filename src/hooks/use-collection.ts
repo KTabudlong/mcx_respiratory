@@ -2,6 +2,7 @@ import { collection, onSnapshot } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
 
 import { db } from '@/lib/firebase';
+import { docData } from '@/lib/firestore-data';
 
 type Snapshot<T> = { path: string; data: T[]; error: Error | null };
 
@@ -20,9 +21,7 @@ export function useCollection<T>(path: string | null) {
             (snap) =>
                 setSnapshot({
                     path,
-                    data: snap.docs.map(
-                        (item) => ({ id: item.id, ...item.data() }) as T,
-                    ),
+                    data: snap.docs.map((item) => docData<T>(item)),
                     error: null,
                 }),
             (error) => setSnapshot({ path, data: [], error }),

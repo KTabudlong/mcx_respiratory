@@ -47,8 +47,8 @@ describe('getUserStatus / isApproved', () => {
         firstName: 'Jane',
         lastName: 'Doe',
         email: 'jane@student.ccc.edu',
-        roleIds: [],
-        permissions: [],
+        createdBy: null,
+        createdInClassId: null,
         createdAt: {} as Timestamp,
         updatedAt: {} as Timestamp,
         deletedAt: null,
@@ -56,23 +56,24 @@ describe('getUserStatus / isApproved', () => {
 
     it('approves active users in at least one class', () => {
         expect(getUserStatus(profile, 1)).toBe('active');
-        expect(isApproved(profile, 1)).toBe(true);
+        expect(isApproved(profile, 1, false)).toBe(true);
     });
 
-    it('approves users with an app-wide role even without a class', () => {
-        expect(isApproved({ ...profile, roleIds: ['admin'] }, 0)).toBe(true);
+    it('approves super admins even without a class', () => {
+        expect(getUserStatus(profile, 0, true)).toBe('active');
+        expect(isApproved(profile, 0, true)).toBe(true);
     });
 
-    it('treats users with no class and no app-wide role as pending', () => {
+    it('treats users in no class as pending', () => {
         expect(getUserStatus(profile, 0)).toBe('pending');
-        expect(isApproved(profile, 0)).toBe(false);
+        expect(isApproved(profile, 0, false)).toBe(false);
     });
 
-    it('rejects soft-deleted users and missing profiles', () => {
+    it('rejects soft-deleted users (even super admins) and missing profiles', () => {
         const deactivated = { ...profile, deletedAt: {} as Timestamp };
 
         expect(getUserStatus(deactivated, 1)).toBe('deactivated');
-        expect(isApproved(deactivated, 1)).toBe(false);
-        expect(isApproved(null, 1)).toBe(false);
+        expect(isApproved(deactivated, 1, true)).toBe(false);
+        expect(isApproved(null, 1, false)).toBe(false);
     });
 });

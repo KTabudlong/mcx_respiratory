@@ -3,13 +3,12 @@ import { Link } from 'react-router';
 
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/use-auth';
-import { hasAdminAccess } from '@/lib/permissions';
 
-// Shown only to users whose roles open the admin panel.
+// Shown only to super admins and people whose class role has admin.access.
 export function AdminLink() {
-    const { profile } = useAuth();
+    const { hasAdminAccess } = useAuth();
 
-    if (!hasAdminAccess(profile)) {
+    if (!hasAdminAccess) {
         return null;
     }
 

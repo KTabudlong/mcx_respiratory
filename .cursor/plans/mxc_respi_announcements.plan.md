@@ -137,15 +137,16 @@ Two ways an account gets created; both end in the same stepper.
   1. **Account:** school email + password (domain check via `isAllowedEmail`).
   2. **Verify email:** send the link; "I've verified" button reloads the user; "Resend" button.
   3. **Profile:** first name, last name, contact number (E.164) + SMS opt-in, and **pick your class** (active classes). Creates `users/{uid}` (pending, `createdBy: null`), `userContacts/{uid}` and `classes/{classId}/joinRequests/{uid}`.
-  4. **Done:** pending users go to `/pending` ("waiting for your class officers to approve you"); users who already have a class go to the board.
+  4. **Done:** pending users go to `/pending` (shows their join request with Cancel, or a class picker to request one); users who already have a class go to the board.
   - The current step is **derived from account state**, not stored: signed in but unverified → step 2; verified with no profile (or no name) → step 3. Closing the tab and logging in later resumes at the right step.
-- **Officer/super-admin-created (class Students page, `students.manage`; or the super admin's Users page):**
-  - The creator enters first/last name, school email and the role in their class. The user is approved immediately; `users.createdBy` = creator's uid, `members.addedBy` = creator's uid.
+- **Invited (class Students page → "Invite student", anyone whose role in that class has `students.manage`, or a super admin):**
+  - The inviter enters first/last name, school email and a role ranked below their own. The user is approved immediately; `users.createdBy` = inviter's uid, `users.createdInClassId` = the class, `members.addedBy` = inviter's uid.
   - The browser can't create someone else's login with the normal client SDK (that needs the Admin SDK on a server = Blaze). Free workaround: a **second Firebase app instance** (`initializeApp(config, 'admin-create')`) calls `createUserWithEmailAndPassword` so the admin stays signed in on the main instance, then signs out of the second instance.
   - The temporary password is random (`crypto.getRandomValues`), never shown or stored. The admin then calls `sendPasswordResetEmail`, so Firebase emails the student a **"set your password" link** — free, from Firebase's own mailer.
   - The creator writes `users/{newUid}` and the class membership in one batch.
   - The student sets a password, logs in, verifies their email (step 2) and confirms their profile and contact number (step 3), then lands on the board.
-  - `auth/email-already-in-use` shows a clear error ("this person already has an account — find them in the table").
+  - `auth/email-already-in-use` shows a clear error ("ask them to log in and request to join this class"). Existing accounts join another class through a join request from `/pending` (class managers can't list all users).
+  - If the login is created but the Firestore batch fails, the Auth account is left without a profile; the student can still log in and finish sign-up normally.
 - **Deleting a user** is a soft delete (`deletedAt`). The client can't delete or disable someone else's Auth login without the Admin SDK; rules block soft-deleted users from everything (`isActive()`). If ever needed, the login can be disabled by hand in the Firebase console (or the Firebase MCP's `auth_update_user`).
 
 ## Data model (Firestore) — decided 2026-10-08
@@ -158,9 +159,9 @@ Designed normalized first (MySQL-style ERD), then mapped to Firestore. Field nam
 - Soft delete (`users`, `posts`, `comments`): `deletedAt: Timestamp | null`. Every create writes `deletedAt: null` explicitly, because Firestore's `where('deletedAt', '==', null)` doesn't match documents where the field is missing. Rules enforce it.
 - IDs are Firestore auto IDs, except `users/{uid}` (Firebase Auth uid) and `roles/{slug}` (readable, unique by construction).
 
-**The class is the anchor; roles belong to classes (decided 2026-10-08, NOT YET IMPLEMENTED).** All class data lives under `classes/{classId}`; the path is the foreign key. Each class has its **own roles** (Class A: Student, President, Treasurer; Class B: Student, Pres, Treasurer, Secretary) with their own permissions. The only app-wide role is **super admin** (the user), who manages every class. Hierarchy: **super admin → class → roles**.
+**The class is the anchor; roles belong to classes (decided 2026-10-08, built in Phase 2b).** All class data lives under `classes/{classId}`; the path is the foreign key. Each class has its **own roles** (Class A: Student, President, Treasurer; Class B: Student, Pres, Treasurer, Secretary) with their own permissions. The only app-wide role is **super admin** (the user), who manages every class. Hierarchy: **super admin → class → roles**.
 
-> **Code status:** the deployed code/rules (2026-10-08) still use the interim model — a global `roles` collection, `members.roleIds[]` + derived `permissions`, app-wide `users.roleIds`. The next build session replaces it with the model below.
+"Officer" is not a concept in the code: officers are just whatever roles a class creates with admin permissions (`admin.access`, `students.*`, `roles.manage`). Typical setup: the super admin creates the class, adds its roles (e.g. President with `roles.manage` + `students.manage`), invites the first President, and the President takes it from there.
 
 ```
 admins/{uid}                     super admins (only a super admin writes here)
@@ -176,10 +177,10 @@ userContacts/{uid}               1:1 with users, private (SMS consent)
 
 **Collections:**
 
-- `admins/{uid}`: `{ createdAt }`. Super admin = this doc exists. Separate collection so no class officer can ever grant it; first one is created by hand (console/MCP). Super admins can do everything in every class plus app-wide pages (all classes, all users, super admins).
+- `admins/{uid}`: `{ createdAt }`. Super admin = this doc exists. Separate collection so no class role can ever grant it; first one is created by hand (console/MCP). Super admins can do everything in every class plus app-wide pages (all classes, all users, super admins).
 - `classes/{classId}`: `{ name, startYear, endYear | null, archivedAt | null, createdAt, updatedAt }`
   - Only super admins create / edit / archive classes. A class is archived instead of deleted.
-  - Creating a class also creates its default roles in the same batch: **Student** (rank 1, `posts.create`) and **President** (top rank, all class permissions). The super admin assigns the first President.
+  - Creating a class also creates one default role in the same batch: **Student** (id `student`, rank 1, `posts.create`), so self sign-up join requests can be approved right away. The super admin adds every other role.
 - `classes/{classId}/roles/{roleId}` (per-class master table, no enums): `{ name, color, rank, permissions: string[], createdAt, updatedAt }`
   - **`rank`** (number, higher = more power) gives a Discord-style hierarchy: you can only create/edit/delete roles ranked **below** your own role, and only manage members whose role is ranked below yours.
   - Deleting a role is blocked in the UI while members still hold it.
@@ -190,11 +191,11 @@ userContacts/{uid}               1:1 with users, private (SMS consent)
   - `phone`: copy of the member's phone (E.164 or `''`) so **all classmates can see it** (user decision: promotes communication). Rules can't check "shares a class" on `userContacts`, so the number is copied per membership. Written by the member themselves (profile save updates every membership in one batch) and on approval (copied from the join request). This is the one deliberate denormalization.
   - Removing someone from a class deletes the pivot doc; their posts stay.
 - `classes/{classId}/joinRequests/{uid}`: `{ userId, phone, createdAt }`
-  - Sign-up's profile step asks the student to **pick their class** (active classes). Officers with `students.manage` in that class approve (batch: create member with the Student role + delete request) or reject (delete request).
-- `users/{uid}`: `{ firstName, lastName, email, createdBy | null, createdAt, updatedAt, deletedAt }`
-  - **`createdBy`**: `null` for self sign-up; otherwise the uid of the officer/super admin who created the account (rules: must equal the creator's uid).
+  - Sign-up's profile step asks the student to **pick their class** (active classes). Anyone whose role in that class has `students.manage` approves (batch: create member with a role ranked below theirs, defaulting to the lowest, + delete request) or rejects (delete request). Pending users can also request from `/pending`.
+- `users/{uid}`: `{ firstName, lastName, email, createdBy | null, createdInClassId | null, createdAt, updatedAt, deletedAt }`
+  - **`createdBy`**: `null` for self sign-up; otherwise the uid of whoever invited them (rules: must equal the creator's uid). **`createdInClassId`**: the class they were invited into; the rules use it to check the inviter has `students.manage` there and that the membership is created in the same batch (`existsAfter`).
   - **Pending** = no memberships (and not a super admin).
-  - Deactivate/restore (`deletedAt`) is super admin only, since a person can be in several classes. Officers remove people from *their* class instead.
+  - Deactivate/restore (`deletedAt`) is super admin only, since a person can be in several classes. Class managers remove people from *their* class instead.
   - Email must be `@student.ccc.edu` or `@ccc.edu` (copied from Auth; rules check it matches the token).
 - `userContacts/{uid}`: `{ phone, smsOptIn, smsOptInAt | null, updatedAt }`
   - Source of truth for the phone + SMS consent; readable by the owner and super admins only. Classmates see the membership copy.
@@ -228,12 +229,10 @@ userContacts/{uid}               1:1 with users, private (SMS consent)
 
 - Every read requires `isMember()`, so nothing is public.
 - `isActive()` = `isMember()` + own `users` doc exists with `deletedAt == null`. Everything beyond reading/creating your own profile requires it, so soft-deleted users are locked out.
-*(Target model — see § Data model. Implemented rules are still the interim version until the next build session.)*
-
 - `isSuperAdmin()` = active + `exists(admins/{me})`. `inClass(c)` = super admin or `classes/c/members/{me}` exists. `canIn(c, p)` = super admin, or `p in get(classes/c/roles/{myMember.roleId}).permissions` (2 lookups). `myRank(c)` = that role's `rank` (super admin = unlimited).
 - `users/{uid}`:
   - Self-create: own doc only, `createdBy == null`, `deletedAt: null`.
-  - Officer/super-admin create (new account): `createdBy == request.auth.uid`, and the same batch creates the membership in a class where the creator has `students.manage` (rule checks `existsAfter` on that member doc via a `createdInClassId`-style check, finalized at build time).
+  - Invited (new account): `createdBy == request.auth.uid`, `canIn(createdInClassId, 'students.manage')`, and `existsAfter(classes/{createdInClassId}/members/{uid})` — the membership is created in the same batch.
   - Self-update: only `firstName` and `lastName`. Deactivate/restore: super admin only.
   - Any active account can `get` a single profile (names for the client-side join); only super admins can `list` the collection.
 - `classes/{c}/members/{uid}`: readable by members of that class (roster + phone), the person themselves (collection-group "my classes"), and super admins. Create/update/delete need `students.manage` in `c`, the target's current and new role must rank **below** `myRank(c)`, and create checks the foreign keys (`exists` class, `existsAfter` user, `exists` role). `addedBy == request.auth.uid`. The member can update only their own `phone` copy.
@@ -274,22 +273,21 @@ Both use the same hooks, types, `AuthProvider` and `firestore.rules`; only the l
 
 - **Shell:** collapsible left sidebar (shadcn `sidebar`), top bar with breadcrumbs and user menu, "Open board" button (opens `/` in a new tab). On mobile the sidebar becomes a drawer.
 - **Landing (decided 2026-10-08):** after login, users with any admin permission land on `/admin`; everyone else on `/`. Opening `/` directly never redirects, so admins can keep the board open in a second tab. URLs stay hash-based (`/#/admin/users`) — the user chose this over clean URLs with a `404.html` fallback.
-- **Access:** visible to users with at least one admin permission (`users.view`, `users.manage`, `roles.manage`, `classes.manage`, `posts.delete_any`, `comments.delete_any`); each section is gated by its own permission, in the UI **and** in `firestore.rules`.
+- **Access:** super admins, plus anyone whose role in some class has `admin.access`; each class page is gated by its own class permission, in the UI **and** in `firestore.rules`.
 - **Data tables** (shadcn data-table pattern on `@tanstack/react-table`): search, filters (class, role, status: active / pending / deleted), sortable columns, pagination, column visibility, row selection with **bulk actions**.
   - Filtering and search run in memory: at class scale the admin loads the whole collection (a few hundred documents). Firestore has no `LIKE`/full-text search; if this ever grows past that, add lowercase prefix-search fields first.
 - **Record detail pages:** tabs for profile, contact info, classes and roles, and activity (that user's posts and comments).
 
-| Route | Purpose |
-| --- | --- |
-Two levels (decided 2026-10-08). Class officers see a **class switcher** listing only classes where their role has `admin.access`; super admins see every class plus the app-wide pages.
+Two levels (decided 2026-10-08). Class managers see a **class switcher** listing only classes where their role has `admin.access`; super admins see every class plus the app-wide pages.
 
 | Route | Who | Purpose |
 | --- | --- | --- |
-| `/admin` | any admin access | Redirects to the first class you can manage (or the super admin dashboard) |
+| `/admin` | any admin access | Redirects to All classes (super admin) or your first class |
+| `/admin/classes/:classId` | `admin.access` in that class | Redirects to the first class page your role allows |
 | `/admin/classes/:classId/students` | `students.view` / `students.manage` | Class roster with search by first/last name, phone, role; join requests (approve/reject); add student (existing user or new account); change role; remove from class |
 | `/admin/classes/:classId/roles` | `roles.manage` | This class's roles: name, color, rank, permission checkboxes (only roles ranked below yours) |
 | `/admin/classes/:classId/posts` | `posts.delete_any` / `comments.delete_any` | Moderation tables incl. soft-deleted items; restore |
-| `/admin/classes` | super admin | All classes: create (with default Student + President roles), edit, archive |
+| `/admin/classes` | super admin | All classes: create (with the default Student role), edit, archive, member counts |
 | `/admin/users` | super admin | All users: search, deactivate/restore, `createdBy`, which classes they're in |
 | `/admin/admins` | super admin | Super admins list (later; first one by hand) |
 

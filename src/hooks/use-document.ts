@@ -2,6 +2,7 @@ import { doc, onSnapshot } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
 
 import { db } from '@/lib/firebase';
+import { docData } from '@/lib/firestore-data';
 
 type Snapshot<T> = { path: string; data: T | null; error: Error | null };
 
@@ -20,9 +21,7 @@ export function useDocument<T>(path: string | null) {
             (snap) =>
                 setSnapshot({
                     path,
-                    data: snap.exists()
-                        ? ({ id: snap.id, ...snap.data() } as T)
-                        : null,
+                    data: snap.exists() ? docData<T>(snap) : null,
                     error: null,
                 }),
             (error) => setSnapshot({ path, data: null, error }),

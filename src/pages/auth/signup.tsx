@@ -46,6 +46,7 @@ export default function Signup() {
         profile,
         contact,
         memberships,
+        isSuperAdmin,
         loading,
         error,
     } = useAuth();
@@ -82,11 +83,16 @@ export default function Signup() {
                         uid={user.uid}
                         email={user.email ?? ''}
                         profile={profile}
+                        memberships={memberships}
                     />
                 )}
                 {step === 'done' && (
                     <DoneStep
-                        approved={isApproved(profile, memberships.length)}
+                        approved={isApproved(
+                            profile,
+                            memberships.length,
+                            isSuperAdmin,
+                        )}
                     />
                 )}
             </CardContent>
