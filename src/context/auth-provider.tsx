@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 
 import type { AuthContextValue } from '@/context/auth-context';
 import { AuthContext } from '@/context/auth-context';
-import { useMyMemberships } from '@/hooks/use-collection-group';
+import { useMembershipsOf } from '@/hooks/use-collection-group';
 import { useDocument } from '@/hooks/use-document';
 import { useDocuments } from '@/hooks/use-documents';
 import { reloadCurrentUser } from '@/lib/auth';
@@ -42,7 +42,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const admin = useDocument<{ id: string }>(
         activeUid ? `admins/${activeUid}` : null,
     );
-    const memberships = useMyMemberships(activeUid);
+    const memberships = useMembershipsOf(activeUid);
     const roles = useDocuments<ClassRole>(
         memberships.data.map(
             (membership) =>

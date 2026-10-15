@@ -2,6 +2,7 @@ import { RoleBadge } from '@/components/admin/role-badge';
 import { NativeSelect } from '@/components/common/native-select';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
     Table,
     TableBody,
@@ -27,6 +28,8 @@ export function MembersTable({
     assignableRoles,
     currentUserId,
     emptyMessage,
+    selectedIds,
+    onSelect,
     onChangeRole,
     onRemove,
 }: {
@@ -34,16 +37,35 @@ export function MembersTable({
     assignableRoles: ClassRole[];
     currentUserId: string | undefined;
     emptyMessage: string;
+    // Selected user IDs (for "Email selected").
+    selectedIds: Set<string>;
+    onSelect: (userIds: string[], selected: boolean) => void;
     onChangeRole: (row: MemberRow, roleId: string) => void;
     onRemove: (row: MemberRow) => void;
 }) {
     const showActions = rows.some((row) => row.manageable);
+    const allSelected =
+        rows.length > 0 &&
+        rows.every((row) => selectedIds.has(row.member.userId));
 
     return (
         <div className="rounded-md border">
             <Table>
                 <TableHeader>
                     <TableRow>
+                        <TableHead className="w-10">
+                            <Checkbox
+                                aria-label="Select everyone shown"
+                                checked={allSelected}
+                                disabled={rows.length === 0}
+                                onCheckedChange={(checked) =>
+                                    onSelect(
+                                        rows.map((row) => row.member.userId),
+                                        checked === true,
+                                    )
+                                }
+                            />
+                        </TableHead>
                         <TableHead>Name</TableHead>
                         <TableHead>Phone</TableHead>
                         <TableHead>Role</TableHead>
@@ -59,7 +81,7 @@ export function MembersTable({
                     {rows.length === 0 && (
                         <TableRow>
                             <TableCell
-                                colSpan={showActions ? 5 : 4}
+                                colSpan={showActions ? 6 : 5}
                                 className="py-8 text-center text-muted-foreground"
                             >
                                 {emptyMessage}
@@ -71,7 +93,26 @@ export function MembersTable({
                         const selectId = `member-role-${member.id}`;
 
                         return (
-                            <TableRow key={member.id}>
+                            <TableRow
+                                key={member.id}
+                                data-state={
+                                    selectedIds.has(member.userId)
+                                        ? 'selected'
+                                        : undefined
+                                }
+                            >
+                                <TableCell>
+                                    <Checkbox
+                                        aria-label={`Select ${user?.firstName ?? 'member'} ${user?.lastName ?? ''}`.trim()}
+                                        checked={selectedIds.has(member.userId)}
+                                        onCheckedChange={(checked) =>
+                                            onSelect(
+                                                [member.userId],
+                                                checked === true,
+                                            )
+                                        }
+                                    />
+                                </TableCell>
                                 <TableCell>
                                     <div className="flex items-center gap-2 font-medium">
                                         {user

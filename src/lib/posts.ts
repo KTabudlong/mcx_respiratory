@@ -174,3 +174,11 @@ export function softDeletePost(classId: string, postId: string) {
         updatedAt: serverTimestamp(),
     });
 }
+
+// Moderators only (posts.delete_any).
+export function restorePost(classId: string, postId: string) {
+    return updateDoc(postRef(classId, postId), {
+        deletedAt: null,
+        updatedAt: serverTimestamp(),
+    });
+}

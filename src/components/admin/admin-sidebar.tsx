@@ -1,6 +1,8 @@
 import {
     GraduationCap,
+    LayoutDashboard,
     LogOut,
+    ShieldAlert,
     ShieldCheck,
     UserCog,
     Users,
@@ -50,9 +52,16 @@ export const CLASS_NAV: (Omit<NavItem, 'to'> & {
         icon: ShieldCheck,
         anyOf: ['roles.manage'],
     },
+    {
+        path: 'moderation',
+        label: 'Moderation',
+        icon: ShieldAlert,
+        anyOf: ['posts.delete_any', 'comments.delete_any'],
+    },
 ];
 
 const SUPER_ADMIN_NAV: NavItem[] = [
+    { to: '/admin', label: 'Overview', icon: LayoutDashboard },
     { to: '/admin/classes', label: 'All classes', icon: GraduationCap },
     { to: '/admin/users', label: 'All users', icon: UserCog },
 ];
@@ -92,13 +101,20 @@ export function AdminSidebar() {
         ? classes.data
         : classes.data.filter((item) => adminClassIds.includes(item.id));
     const classItems = classId
-        ? CLASS_NAV.filter((item) =>
-              item.anyOf.some((permission) => canIn(classId, permission)),
-          ).map((item) => ({
-              to: `/admin/classes/${classId}/${item.path}`,
-              label: item.label,
-              icon: item.icon,
-          }))
+        ? [
+              {
+                  to: `/admin/classes/${classId}`,
+                  label: 'Overview',
+                  icon: LayoutDashboard,
+              },
+              ...CLASS_NAV.filter((item) =>
+                  item.anyOf.some((permission) => canIn(classId, permission)),
+              ).map((item) => ({
+                  to: `/admin/classes/${classId}/${item.path}`,
+                  label: item.label,
+                  icon: item.icon,
+              })),
+          ]
         : [];
 
     return (

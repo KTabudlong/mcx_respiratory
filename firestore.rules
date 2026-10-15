@@ -240,6 +240,15 @@ service cloud.firestore {
         || isSuperAdmin();
     }
 
+    // One user's posts / comments across every class (super admin user page).
+    match /{path=**}/posts/{postId} {
+      allow read: if isSuperAdmin();
+    }
+
+    match /{path=**}/comments/{commentId} {
+      allow read: if isSuperAdmin();
+    }
+
     // ---------- classes (archived, never deleted) ----------
 
     function isValidClass(data) {

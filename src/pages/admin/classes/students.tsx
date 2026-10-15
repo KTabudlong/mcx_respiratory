@@ -4,6 +4,7 @@ import { useParams } from 'react-router';
 
 import { AddMemberDialog } from '@/components/admin/add-member-dialog';
 import { ClassPageHeader } from '@/components/admin/class-page-header';
+import { EmailSelectedBar } from '@/components/admin/email-selected-bar';
 import { InviteMemberDialog } from '@/components/admin/invite-member-dialog';
 import { JoinRequestsList } from '@/components/admin/join-requests-list';
 import type { MemberRow } from '@/components/admin/members-table';
@@ -17,6 +18,7 @@ import { useAuth } from '@/hooks/use-auth';
 import { useCollection } from '@/hooks/use-collection';
 import { useDocuments } from '@/hooks/use-documents';
 import { changeMemberRole, removeMember } from '@/lib/class-members';
+import { uniqueEmails } from '@/lib/email';
 import { getErrorMessage } from '@/lib/errors';
 import {
     assignableRoles,
@@ -56,6 +58,7 @@ export default function ClassStudents() {
     );
 
     const [search, setSearch] = useState('');
+    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
     const [dialog, setDialog] = useState<DialogState>(null);
     const [actionError, setActionError] = useState('');
 
@@ -91,6 +94,23 @@ export default function ClassStudents() {
     const sortedRequests = [...requests.data].sort(
         (a, b) => a.createdAt.toMillis() - b.createdAt.toMillis(),
     );
+    // Only people still in the class (a removed member drops out).
+    const selectedEmails = uniqueEmails(
+        members.data
+            .filter((member) => selectedIds.has(member.userId))
+            .map((member) => userById.get(member.userId)?.email ?? ''),
+    );
+
+    function handleSelect(userIds: string[], selected: boolean) {
+        setSelectedIds((current) => {
+            const next = new Set(current);
+            userIds.forEach((id) =>
+                selected ? next.add(id) : next.delete(id),
+            );
+
+            return next;
+        });
+    }
 
     async function handleChangeRole(row: MemberRow, roleId: string) {
         setActionError('');
@@ -158,10 +178,20 @@ export default function ClassStudents() {
                         label="Search students by first or last name"
                     />
 
+                    {selectedEmails.length > 0 && (
+                        <EmailSelectedBar
+                            key={selectedEmails.join(',')}
+                            emails={selectedEmails}
+                            onClear={() => setSelectedIds(new Set())}
+                        />
+                    )}
+
                     <MembersTable
                         rows={rows}
                         assignableRoles={assignable}
                         currentUserId={me?.uid}
+                        selectedIds={selectedIds}
+                        onSelect={handleSelect}
                         emptyMessage={
                             members.data.length === 0
                                 ? 'Nobody in this class yet.'

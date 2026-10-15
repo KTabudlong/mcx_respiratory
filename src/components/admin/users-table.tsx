@@ -98,7 +98,12 @@ export function UsersTable({
                             >
                                 <TableCell>
                                     <div className="flex items-center gap-2 font-medium">
-                                        {user.lastName}, {user.firstName}
+                                        <Link
+                                            to={`/admin/users/${user.id}`}
+                                            className="underline-offset-4 hover:underline"
+                                        >
+                                            {user.lastName}, {user.firstName}
+                                        </Link>
                                         {isMe && ' (you)'}
                                         {isSuperAdmin && (
                                             <Badge>Super admin</Badge>

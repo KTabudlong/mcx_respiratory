@@ -16,6 +16,14 @@
                 { "fieldPath": "deletedAt", "order": "ASCENDING" },
                 { "fieldPath": "createdAt", "order": "ASCENDING" }
             ]
+        },
+        {
+            "collectionGroup": "posts",
+            "queryScope": "COLLECTION_GROUP",
+            "fields": [
+                { "fieldPath": "userId", "order": "ASCENDING" },
+                { "fieldPath": "createdAt", "order": "DESCENDING" }
+            ]
         }
     ],
     "fieldOverrides": [
@@ -31,6 +39,26 @@
         },
         {
             "collectionGroup": "joinRequests",
+            "fieldPath": "userId",
+            "indexes": [
+                { "order": "ASCENDING", "queryScope": "COLLECTION" },
+                { "order": "DESCENDING", "queryScope": "COLLECTION" },
+                { "arrayConfig": "CONTAINS", "queryScope": "COLLECTION" },
+                { "order": "ASCENDING", "queryScope": "COLLECTION_GROUP" }
+            ]
+        },
+        {
+            "collectionGroup": "posts",
+            "fieldPath": "userId",
+            "indexes": [
+                { "order": "ASCENDING", "queryScope": "COLLECTION" },
+                { "order": "DESCENDING", "queryScope": "COLLECTION" },
+                { "arrayConfig": "CONTAINS", "queryScope": "COLLECTION" },
+                { "order": "ASCENDING", "queryScope": "COLLECTION_GROUP" }
+            ]
+        },
+        {
+            "collectionGroup": "comments",
             "fieldPath": "userId",
             "indexes": [
                 { "order": "ASCENDING", "queryScope": "COLLECTION" },

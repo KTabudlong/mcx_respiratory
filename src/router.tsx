@@ -117,6 +117,13 @@ export const router = createHashRouter([
                                                 import('@/pages/admin/users/index'),
                                         ),
                                     },
+                                    {
+                                        path: 'users/:userId',
+                                        ...lazyPage(
+                                            () =>
+                                                import('@/pages/admin/users/show'),
+                                        ),
+                                    },
                                 ],
                             },
                             // One class's admin pages; each checks the
@@ -169,6 +176,26 @@ export const router = createHashRouter([
                                                 ...lazyPage(
                                                     () =>
                                                         import('@/pages/admin/classes/roles'),
+                                                ),
+                                            },
+                                        ],
+                                    },
+                                    {
+                                        path: 'moderation',
+                                        element: (
+                                            <RequireClassPermission
+                                                anyOf={[
+                                                    'posts.delete_any',
+                                                    'comments.delete_any',
+                                                ]}
+                                            />
+                                        ),
+                                        children: [
+                                            {
+                                                index: true,
+                                                ...lazyPage(
+                                                    () =>
+                                                        import('@/pages/admin/classes/moderation'),
                                                 ),
                                             },
                                         ],

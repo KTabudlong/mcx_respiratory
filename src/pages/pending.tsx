@@ -14,7 +14,7 @@ import {
 } from '@/components/ui/card';
 import { useAuth } from '@/hooks/use-auth';
 import { useCollection } from '@/hooks/use-collection';
-import { useMyJoinRequests } from '@/hooks/use-collection-group';
+import { useJoinRequestsOf } from '@/hooks/use-collection-group';
 import { isApproved } from '@/lib/account-status';
 import { logOut } from '@/lib/auth';
 import { getErrorMessage } from '@/lib/errors';
@@ -26,7 +26,7 @@ import type { ClassGroup } from '@/types';
 export default function Pending() {
     const { profile, contact, memberships, isSuperAdmin } = useAuth();
     const deactivated = profile?.deletedAt != null;
-    const requests = useMyJoinRequests(
+    const requests = useJoinRequestsOf(
         profile && !deactivated ? profile.id : null,
     );
     const classes = useCollection<ClassGroup>('classes');

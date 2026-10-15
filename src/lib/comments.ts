@@ -82,6 +82,14 @@ export function softDeleteComment(comment: Comment) {
     });
 }
 
+// Moderators only (comments.delete_any).
+export function restoreComment(comment: Comment) {
+    return updateDoc(commentRef(comment), {
+        deletedAt: null,
+        updatedAt: serverTimestamp(),
+    });
+}
+
 // Firestore's COUNT(*): one read per 1,000 comments, not live.
 export async function countComments(classId: string, postId: string) {
     const snap = await getCountFromServer(

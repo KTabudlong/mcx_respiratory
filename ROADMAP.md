@@ -28,7 +28,7 @@
 
 **Planning last reviewed:** 2026-10-08
 
-**Current milestone:** Phases 2b, 3 and 4 built and deployed (per-class roles, board + posts, threaded comments); manual testing pending. Next: Phase 5 (rest of the admin panel).
+**Current milestone:** Phases 2b–5 built (per-class roles, board + posts, threaded comments, admin dashboards / moderation / user page), all rules + indexes deployed; manual testing pending. Next: testing checklist, then Phase 6.
 
 ### Planning — data model + UI ✅ 2026-10-08
 
@@ -101,10 +101,13 @@
 
 ### Phase 5 — Rest of the CRM admin panel (days 19–22)
 
-- [ ] Dashboard stat cards; breadcrumbs in the admin header
-- [ ] Data table upgrade: filters, sort, column visibility, row selection, bulk actions (incl. "email selected")
-- [ ] User detail tabs (profile, contact, classes/roles, activity); class detail with members
-- [ ] Posts / comments moderation tables (incl. restore)
+- [x] Dashboard stat cards (`count()`): super admin overview at `/admin`, class overview at `/admin/classes/:classId`; breadcrumbs in the admin header
+- [x] Students roster: row selection + "Email selected" (mailto BCC, copy-addresses fallback). Full data-table upgrade (sort, column visibility) skipped — class-size tables don't need it
+- [x] Super admin user page `/admin/users/:userId` (profile, contact, classes + roles, join requests, post/comment totals, recent posts); names in the users table link to it
+- [x] Moderation page `/admin/classes/:classId/moderation` (`posts.delete_any` or `comments.delete_any`): all / live / deleted posts, delete + restore, expand a post for its comments (delete + restore)
+- [x] Rules + indexes for the user page: super admin collection-group reads of `posts` / `comments`; `posts` (`userId`, `createdAt` desc) group index; `posts.userId` / `comments.userId` group overrides; validated
+- [x] Deploy the user-page rules + indexes, 2026-10-15
+- [ ] (User) Manual test: dashboards, breadcrumbs, email selected, user page, moderation delete/restore as a moderator role
 
 ### Phase 6 — Polish + launch (days 23–25)
 

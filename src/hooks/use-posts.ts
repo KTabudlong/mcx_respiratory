@@ -59,3 +59,45 @@ export function usePosts(classId: string, count: number) {
         hasMore: current !== null && current.posts.length === count,
     };
 }
+
+// Moderation list: every post in the class, newest first. Including deleted
+// posts needs posts.delete_any (the rules check it), so without it only live
+// posts are queried.
+export function useModerationPosts(classId: string, includeDeleted: boolean) {
+    const key = `${classId}|${includeDeleted}`;
+    const [snapshot, setSnapshot] = useState<{
+        key: string;
+        posts: Post[];
+        error: Error | null;
+    } | null>(null);
+
+    useEffect(() => {
+        const posts = collection(db, 'classes', classId, 'posts');
+
+        return onSnapshot(
+            includeDeleted
+                ? posts
+                : query(posts, where('deletedAt', '==', null)),
+            (snap) =>
+                setSnapshot({
+                    key,
+                    posts: snap.docs
+                        .map((item) => docData<Post>(item))
+                        .sort(
+                            (a, b) =>
+                                b.createdAt.toMillis() - a.createdAt.toMillis(),
+                        ),
+                    error: null,
+                }),
+            (error) => setSnapshot({ key, posts: [], error }),
+        );
+    }, [key, classId, includeDeleted]);
+
+    const current = snapshot?.key === key ? snapshot : null;
+
+    return {
+        posts: current?.posts ?? [],
+        loading: current === null,
+        error: current?.error ?? null,
+    };
+}
