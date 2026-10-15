@@ -3,6 +3,7 @@ import { Navigate } from 'react-router';
 
 import { AdminLink } from '@/components/auth/admin-link';
 import { ClassPicker } from '@/components/auth/class-picker';
+import { ClassRequestDialog } from '@/components/board/class-request-dialog';
 import { FormMessage } from '@/components/common/form-message';
 import { Button } from '@/components/ui/button';
 import {
@@ -15,11 +16,12 @@ import {
 import { useAuth } from '@/hooks/use-auth';
 import { useCollection } from '@/hooks/use-collection';
 import { useJoinRequestsOf } from '@/hooks/use-collection-group';
+import { useDocument } from '@/hooks/use-document';
 import { isApproved } from '@/lib/account-status';
 import { logOut } from '@/lib/auth';
 import { getErrorMessage } from '@/lib/errors';
 import { cancelJoinRequest, requestToJoin } from '@/lib/profile';
-import type { ClassGroup } from '@/types';
+import type { ClassGroup, ClassRequest } from '@/types';
 
 // The profile and membership listeners are live, so this page moves on by
 // itself as soon as someone approves the join request.
@@ -30,6 +32,10 @@ export default function Pending() {
         profile && !deactivated ? profile.id : null,
     );
     const classes = useCollection<ClassGroup>('classes');
+    const classRequest = useDocument<ClassRequest>(
+        profile && !deactivated ? `classRequests/${profile.id}` : null,
+    );
+    const [requestOpen, setRequestOpen] = useState(false);
     const [classId, setClassId] = useState('');
     const [error, setError] = useState('');
     const [busy, setBusy] = useState(false);
@@ -153,10 +159,39 @@ export default function Pending() {
                             </Button>
                         </form>
                     )}
+                {!deactivated && profile && (
+                    <div className="grid gap-2 rounded-md border p-3 text-sm">
+                        <p>
+                            {classRequest.data ? (
+                                <>
+                                    You asked to start{' '}
+                                    <span className="font-medium">
+                                        {classRequest.data.name}
+                                    </span>
+                                    . Waiting for the admin.
+                                </>
+                            ) : (
+                                "Class not listed? Ask to start it and you'll become its President."
+                            )}
+                        </p>
+                        <Button
+                            size="sm"
+                            variant="secondary"
+                            onClick={() => setRequestOpen(true)}
+                        >
+                            {classRequest.data
+                                ? 'View class request'
+                                : 'Request a new class'}
+                        </Button>
+                    </div>
+                )}
                 {!deactivated && (
                     <p className="text-sm text-muted-foreground">
                         This page updates by itself once you're approved.
                     </p>
+                )}
+                {requestOpen && (
+                    <ClassRequestDialog onClose={() => setRequestOpen(false)} />
                 )}
                 <AdminLink />
                 <Button variant="outline" onClick={() => logOut()}>

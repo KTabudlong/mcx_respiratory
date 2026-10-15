@@ -10,6 +10,24 @@
             ]
         },
         {
+            "collectionGroup": "posts",
+            "queryScope": "COLLECTION",
+            "fields": [
+                { "fieldPath": "deletedAt", "order": "ASCENDING" },
+                { "fieldPath": "pinned", "order": "DESCENDING" },
+                { "fieldPath": "score", "order": "DESCENDING" },
+                { "fieldPath": "createdAt", "order": "DESCENDING" }
+            ]
+        },
+        {
+            "collectionGroup": "votes",
+            "queryScope": "COLLECTION_GROUP",
+            "fields": [
+                { "fieldPath": "userId", "order": "ASCENDING" },
+                { "fieldPath": "classId", "order": "ASCENDING" }
+            ]
+        },
+        {
             "collectionGroup": "comments",
             "queryScope": "COLLECTION",
             "fields": [

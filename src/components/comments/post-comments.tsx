@@ -1,3 +1,5 @@
+import { useState } from 'react';
+
 import { CommentForm } from '@/components/comments/comment-form';
 import { CommentList } from '@/components/comments/comment-thread';
 import { FormMessage } from '@/components/common/form-message';
@@ -8,17 +10,21 @@ import { useUsersById } from '@/hooks/use-users-by-id';
 import { buildCommentTree } from '@/lib/comment-tree';
 import { createComment } from '@/lib/comments';
 import { getErrorMessage } from '@/lib/errors';
-import type { Post } from '@/types';
+import type { Post, VoteValue } from '@/types';
 
 // The comments section under a post: a new-comment box and the live thread.
+// `myVotes` is useMyVotes() from the page (keyed by comment path).
 export function PostComments({
     post,
     classOpen,
+    myVotes,
 }: {
     post: Post;
     classOpen: boolean;
+    myVotes: Map<string, VoteValue>;
 }) {
     const { user, accessIn } = useAuth();
+    const [voteError, setVoteError] = useState('');
     const { comments, loading, error } = useComments(post.classId, post.id);
     const authors = useUsersById(comments.map((comment) => comment.userId));
     const tree = buildCommentTree(comments);
@@ -53,6 +59,7 @@ export function PostComments({
             )}
 
             {error && <FormMessage message={getErrorMessage(error)} />}
+            <FormMessage message={voteError} />
 
             {loading ? (
                 <PageLoader />
@@ -70,6 +77,8 @@ export function PostComments({
                         access: accessIn(post.classId),
                         classOpen,
                         authors,
+                        myVotes,
+                        onVoteError: setVoteError,
                     }}
                 />
             )}

@@ -88,6 +88,39 @@ service cloud.firestore {
         || (isClassMember(classId) && permissions.hasOnly(myRole(classId).permissions));
     }
 
+    // ----- votes -----
+    //
+    // A vote lives at <post or comment>/votes/{uid} with value 1 or -1 (no
+    // doc = no vote). The post / comment keeps a running `score`, changed in
+    // the same batch by exactly the voter's change, so nobody can edit a
+    // score without voting, and nobody can touch someone else's vote.
+
+    // How much this batch changes the vote at `votePath` (-2 to 2).
+    function voteChange(votePath) {
+      return (existsAfter(votePath) ? getAfter(votePath).data.value : 0)
+        - (exists(votePath) ? get(votePath).data.value : 0);
+    }
+
+    // The target's score after the batch = before + `change`.
+    function scoreMovesBy(target, change) {
+      return getAfter(target).data.get('score', 0)
+        == get(target).data.get('score', 0) + change;
+    }
+
+    function isValidVote(data, uid, classId) {
+      return data.keys().hasOnly(['userId', 'classId', 'value'])
+        && data.userId == uid
+        && data.classId == classId
+        && data.value in [1, -1];
+    }
+
+    // "My votes" listener: a collection-group query on votes filtered by
+    // userId (and classId). Each person reads only their own votes.
+    match /{path=**}/votes/{uid} {
+      allow read: if request.auth != null
+        && resource.data.userId == request.auth.uid;
+    }
+
     // ---------- validation helpers ----------
 
     // Keep in sync with MAX_NAME_LENGTH in src/lib/names.ts.
@@ -134,8 +167,11 @@ service cloud.firestore {
 
     match /admins/{uid} {
       allow read: if isOwner(uid) || isSuperAdmin();
-      // The first super admin is created by hand (console / MCP).
+      // The first super admin is created by hand (console / MCP); after that
+      // super admins promote active accounts from the user page.
       allow create: if isSuperAdmin()
+        && exists(docPath('users', uid))
+        && get(docPath('users', uid)).data.deletedAt == null
         && incoming().keys().hasOnly(['createdAt'])
         && incoming().createdAt == request.time;
       allow delete: if isSuperAdmin() && !isOwner(uid);
@@ -257,11 +293,9 @@ service cloud.firestore {
 
     // ---------- classes (archived, never deleted) ----------
 
-    function isValidClass(data) {
-      return data.keys().hasOnly([
-          'name', 'startYear', 'endYear', 'archivedAt', 'createdAt', 'updatedAt'
-        ])
-        && data.name is string
+    // Keep in sync with validateClass() in src/lib/classes.ts.
+    function hasValidClassInfo(data) {
+      return data.name is string
         && data.name.trim().size() > 0
         && data.name.size() <= 80
         && data.startYear is int
@@ -269,6 +303,36 @@ service cloud.firestore {
         && data.startYear <= 2100
         && (data.endYear == null
           || (data.endYear is int && data.endYear >= data.startYear && data.endYear <= 2100));
+    }
+
+    function isValidClass(data) {
+      return data.keys().hasOnly([
+          'name', 'startYear', 'endYear', 'archivedAt', 'createdAt', 'updatedAt'
+        ])
+        && hasValidClassInfo(data);
+    }
+
+    // ---------- class requests (a student asks to start a class) ----------
+    //
+    // One open request per person (the doc ID is their uid). The super admin
+    // approves (creates the class with the requester as President, then
+    // deletes this) or rejects (deletes it).
+    match /classRequests/{uid} {
+      allow read: if isOwner(uid) || isSuperAdmin();
+
+      allow create: if isActive()
+        && isOwner(uid)
+        && incoming().keys().hasOnly([
+          'userId', 'name', 'startYear', 'endYear', 'note', 'createdAt'
+        ])
+        && incoming().userId == uid
+        && hasValidClassInfo(incoming())
+        && incoming().note is string
+        && incoming().note.size() <= 500
+        && incoming().createdAt == request.time;
+
+      allow delete: if isOwner(uid) || isSuperAdmin();
+      allow update: if false;
     }
 
     function isValidRole(data) {
@@ -355,10 +419,10 @@ service cloud.firestore {
                 || get(docPath('userContacts', memberId)).data.smsOptIn == true)))
           && incoming().userId == memberId
           && incoming().addedBy == request.auth.uid
-          && exists(/databases/$(database)/documents/classes/$(classId))
+          && existsAfter(/databases/$(database)/documents/classes/$(classId))
           && existsAfter(docPath('users', memberId))
-          && exists(rolePath(classId, incoming().roleId))
-          && outranks(classId, roleRank(classId, incoming().roleId))
+          && existsAfter(rolePath(classId, incoming().roleId))
+          && outranks(classId, getAfter(rolePath(classId, incoming().roleId)).data.rank)
           && (incoming().phone == ''
             || incoming().phone == get(/databases/$(database)/documents/classes/$(classId)/joinRequests/$(memberId)).data.phone
             || incoming().phone == get(docPath('userContacts', memberId)).data.phone)
@@ -452,9 +516,10 @@ service cloud.firestore {
           && classIsOpen()
           && incoming().keys().hasOnly([
             'userId', 'title', 'body', 'format', 'imageIds', 'links', 'pinned',
-            'createdAt', 'updatedAt', 'deletedAt'
+            'score', 'createdAt', 'updatedAt', 'deletedAt'
           ])
           && incoming().userId == request.auth.uid
+          && incoming().get('score', 0) == 0
           && hasValidContent(incoming())
           && incoming().pinned is bool
           && (incoming().pinned == false || canIn(classId, 'posts.pin'))
@@ -462,14 +527,18 @@ service cloud.firestore {
           && incoming().updatedAt == request.time
           && incoming().deletedAt == null;
 
-        // Edit: the author (still in the class) or posts.edit_any. Pinning
-        // can ride along only with posts.pin.
+        // Edit: the author (still in the class) or posts.edit_any, stamped
+        // with who edited (shown on the post). Pinning can ride along only
+        // with posts.pin.
         allow update: if resource.data.deletedAt == null
           && classIsOpen()
           && ((isAuthor() && inClass(classId)) || canIn(classId, 'posts.edit_any'))
           && changedKeys().hasOnly([
-            'title', 'body', 'format', 'imageIds', 'links', 'pinned', 'updatedAt'
+            'title', 'body', 'format', 'imageIds', 'links', 'pinned',
+            'editedBy', 'editedAt', 'updatedAt'
           ])
+          && incoming().editedBy == request.auth.uid
+          && incoming().editedAt == request.time
           && hasValidContent(incoming())
           && (!('pinned' in changedKeys()) || canIn(classId, 'posts.pin'))
           && incoming().pinned is bool
@@ -496,7 +565,44 @@ service cloud.firestore {
           && incoming().deletedAt == null
           && incoming().updatedAt == request.time;
 
+        // Vote: anyone in the class, on a live post in an open class. Only
+        // the score changes, by exactly the change in your own vote.
+        allow update: if resource.data.deletedAt == null
+          && inClass(classId)
+          && classIsOpen()
+          && changedKeys().hasOnly(['score'])
+          && incoming().score is int
+          && incoming().score == resource.data.get('score', 0)
+            + voteChange(/databases/$(database)/documents/classes/$(classId)/posts/$(postId)/votes/$(request.auth.uid));
+
         allow delete: if false;
+
+        // ----- votes (see the votes helpers at the top) -----
+        match /votes/{uid} {
+          function postPath() {
+            return /databases/$(database)/documents/classes/$(classId)/posts/$(postId);
+          }
+
+          function canVote() {
+            return isOwner(uid)
+              && inClass(classId)
+              && classIsOpen()
+              && get(postPath()).data.deletedAt == null;
+          }
+
+          allow read: if isOwner(uid);
+
+          allow create: if canVote()
+            && isValidVote(incoming(), uid, classId)
+            && scoreMovesBy(postPath(), incoming().value);
+
+          allow update: if canVote()
+            && isValidVote(incoming(), uid, classId)
+            && scoreMovesBy(postPath(), incoming().value - resource.data.value);
+
+          allow delete: if canVote()
+            && scoreMovesBy(postPath(), -resource.data.value);
+        }
 
         // ----- photos (bytes, compressed in the browser) -----
         //
@@ -578,10 +684,11 @@ service cloud.firestore {
             && classIsOpen()
             && get(/databases/$(database)/documents/classes/$(classId)/posts/$(postId)).data.deletedAt == null
             && incoming().keys().hasOnly([
-              'userId', 'parentId', 'ancestorIds', 'body',
+              'userId', 'parentId', 'ancestorIds', 'body', 'score',
               'createdAt', 'updatedAt', 'deletedAt'
             ])
             && incoming().userId == request.auth.uid
+            && incoming().get('score', 0) == 0
             && isValidBody(incoming().body)
             && hasValidParent(incoming())
             && incoming().createdAt == request.time
@@ -612,7 +719,38 @@ service cloud.firestore {
             && incoming().deletedAt == null
             && incoming().updatedAt == request.time;
 
+          // Vote: like posts, only the score, by your own vote's change.
+          allow update: if resource.data.deletedAt == null
+            && inClass(classId)
+            && classIsOpen()
+            && changedKeys().hasOnly(['score'])
+            && incoming().score is int
+            && incoming().score == resource.data.get('score', 0)
+              + voteChange(/databases/$(database)/documents/classes/$(classId)/posts/$(postId)/comments/$(commentId)/votes/$(request.auth.uid));
+
           allow delete: if false;
+
+          match /votes/{uid} {
+            function canVote() {
+              return isOwner(uid)
+                && inClass(classId)
+                && classIsOpen()
+                && get(commentPath(commentId)).data.deletedAt == null;
+            }
+
+            allow read: if isOwner(uid);
+
+            allow create: if canVote()
+              && isValidVote(incoming(), uid, classId)
+              && scoreMovesBy(commentPath(commentId), incoming().value);
+
+            allow update: if canVote()
+              && isValidVote(incoming(), uid, classId)
+              && scoreMovesBy(commentPath(commentId), incoming().value - resource.data.value);
+
+            allow delete: if canVote()
+              && scoreMovesBy(commentPath(commentId), -resource.data.value);
+          }
         }
       }
     }

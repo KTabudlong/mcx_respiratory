@@ -173,6 +173,7 @@ export async function createPost(
         format: 'html',
         imageIds: images.map((image) => image.id),
         userId,
+        score: 0,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
         deletedAt: null,
@@ -192,6 +193,7 @@ export type ImageChanges = {
 
 // `pinned` is only sent when it changed, since the rules require posts.pin
 // for that. Removed photos are deleted outright (they're not posts).
+// `userId` is the editor (author or posts.edit_any), shown as "edited by".
 export async function updatePost(
     classId: string,
     postId: string,
@@ -208,6 +210,8 @@ export async function updatePost(
         format: 'html',
         imageIds: images.imageIds,
         ...(pinnedChanged ? { pinned } : {}),
+        editedBy: userId,
+        editedAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
     });
     addImages(batch, classId, postId, userId, images.added);

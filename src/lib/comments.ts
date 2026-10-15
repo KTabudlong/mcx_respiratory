@@ -62,6 +62,7 @@ export function createComment(
         parentId: parent?.id ?? null,
         ancestorIds: parent ? [...parent.ancestorIds, parent.id] : [],
         body: body.trim(),
+        score: 0,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
         deletedAt: null,

@@ -5,6 +5,7 @@ import { CommentActions } from '@/components/comments/comment-actions';
 import { CommentForm } from '@/components/comments/comment-form';
 import { CommentMeta } from '@/components/comments/comment-meta';
 import { ConfirmDialog } from '@/components/common/confirm-dialog';
+import { VoteButtons } from '@/components/posts/vote-buttons';
 import { Button } from '@/components/ui/button';
 import type { CommentNode } from '@/lib/comment-tree';
 import { countComments } from '@/lib/comment-tree';
@@ -15,9 +16,10 @@ import {
     updateComment,
 } from '@/lib/comments';
 import type { ClassAccess } from '@/lib/permissions';
-import { commentAbilities } from '@/lib/permissions';
+import { canVoteIn, commentAbilities } from '@/lib/permissions';
 import { cn } from '@/lib/utils';
-import type { UserProfile } from '@/types';
+import { commentPath } from '@/lib/votes';
+import type { UserProfile, VoteValue } from '@/types';
 
 // Everything a comment needs besides its own node.
 export type ThreadContext = {
@@ -27,6 +29,8 @@ export type ThreadContext = {
     access: ClassAccess;
     classOpen: boolean;
     authors: Map<string, UserProfile>;
+    myVotes: Map<string, VoteValue>;
+    onVoteError: (message: string) => void;
 };
 
 function CommentItem({
@@ -42,6 +46,7 @@ function CommentItem({
     const [confirming, setConfirming] = useState(false);
     const { comment } = node;
     const hiddenCount = countComments(node.children) + (comment ? 1 : 0);
+    const votePath = commentPath(context.classId, context.postId, node.id);
 
     return (
         <li className="grid gap-1">
@@ -98,18 +103,31 @@ function CommentItem({
                             <p className="text-sm break-words whitespace-pre-wrap">
                                 {comment.body}
                             </p>
-                            <CommentActions
-                                {...commentAbilities(
-                                    comment,
-                                    context.userId,
-                                    context.access,
-                                    context.classOpen,
-                                    MAX_COMMENT_DEPTH,
-                                )}
-                                onReply={() => setReplying(true)}
-                                onEdit={() => setEditing(true)}
-                                onDelete={() => setConfirming(true)}
-                            />
+                            <div className="-ml-1.5 flex flex-wrap items-center gap-2">
+                                <VoteButtons
+                                    targetPath={votePath}
+                                    classId={context.classId}
+                                    score={comment.score}
+                                    myVote={context.myVotes.get(votePath)}
+                                    canVote={canVoteIn(
+                                        context.access,
+                                        context.classOpen,
+                                    )}
+                                    onError={context.onVoteError}
+                                />
+                                <CommentActions
+                                    {...commentAbilities(
+                                        comment,
+                                        context.userId,
+                                        context.access,
+                                        context.classOpen,
+                                        MAX_COMMENT_DEPTH,
+                                    )}
+                                    onReply={() => setReplying(true)}
+                                    onEdit={() => setEditing(true)}
+                                    onDelete={() => setConfirming(true)}
+                                />
+                            </div>
                         </>
                     )}
 

@@ -26,9 +26,9 @@
 
 ## Short-term checklist
 
-**Planning last reviewed:** 2026-10-08
+**Planning last reviewed:** 2026-10-15
 
-**Current milestone:** Phases 2b–5 built (per-class roles, board + posts, threaded comments, admin dashboards / moderation / user page), all rules + indexes deployed; manual testing pending. Next: testing checklist, then Phase 6.
+**Current milestone:** Phases 2b–5b + presidents + votes built; rules/indexes deployed. Next: user runs ROADMAP manual-test checklists, then merge `dev` → `main` / Phase 6.
 
 ### Planning — data model + UI ✅ 2026-10-08
 
@@ -134,6 +134,37 @@
   - [ ] User page (from All users): profile, phone, classes + roles, recent posts ("Deleted" badge on deleted ones)
   - [ ] Non-super admin: `/admin/users/...` and All classes show no access
 
+### Decided 2026-10-15 (afternoon)
+
+- [x] Posts show who last edited them ("edited by Name · time"): `editedBy` / `editedAt`, set only on content edits (not pins / deletes); rules require `editedBy` = the editor; validated
+- [x] Deploy the edited-by rules, 2026-10-15
+- [x] Pinning stays a role permission (`posts.pin`) — already built
+- [x] New classes keep only the **Student** role by default
+- [x] **Votes** (built; rules validated) — posts and comments; up / down; tap again to remove, tap the other to switch; only the voter can change or remove their vote (no one else, super admins included); anonymous (each person can read only their own vote); authors may vote on their own posts; score (up − down) shown; feed gets **New / Top** sort (pinned stay first). Data: `…/votes/{uid}` with `userId`, `classId`, `value` 1 or −1 (no doc = no vote); `score` on the post / comment changes in the same batch via `increment()`, and the rules check it moves by exactly the voter's change. "My votes" is one collection-group query per class. New posts / comments start at `score: 0`.
+- [x] Deploy the votes rules + 2 indexes (Top feed; votes by userId + classId), 2026-10-15
+- [ ] Backfill `score: 0` on posts created before votes (they're missing from **Top** until then; New is unaffected; missing comment scores just show 0). Only test data so far, so this can wait until right before inviting the class
+- [ ] (User) Manual test — votes:
+    - [ ] Upvote a post on the feed → arrow fills, score +1; tap again → removed, score back
+    - [ ] Upvote then tap downvote → switches, score −2 from the upvoted state
+    - [ ] Same on the post page and on comments (including replies)
+    - [ ] Vote on your own post works
+    - [ ] Second account votes too → score reflects both; neither account sees who voted
+    - [ ] Archived class → score shows, no vote buttons
+    - [ ] Feed **Top** → pinned first, then highest score, then newest; **New** → pinned, then newest
+- [x] **Class presidents + super admins** (built; rules deployed 2026-10-15) — (A) super admin creates a class and picks its President from existing users; (C) any signed-in user can request a new class (name, years, note), the super admin approves or rejects; approving creates the class with Student + President roles (President = top rank, every permission) and makes the requester President. Plus "Make super admin" / "Remove super admin" on the user page (can't remove yourself). Rules: member create now uses `existsAfter` / `getAfter` for the class and role (one batch creates class + roles + President); new `classRequests/{uid}`; promoting requires an active account.
+- [x] Deploy the class presidents / super admin rules, 2026-10-15
+- [ ] (User) Manual test — class presidents + super admins:
+    - [ ] Admin › Classes › Add class with no President → only a Student role, no members
+    - [ ] Add class with a President → Student + President roles; that person is a member with the President role (phone / SMS consent copied from their profile)
+    - [ ] As the President: all class admin pages work; can create roles below President and promote students, but can't edit the President role
+    - [ ] Pending account: "Request a new class" → form → shows "Waiting for the admin"; Cancel request removes it
+    - [ ] Board user menu › Request a new class → same dialog (shows your open request if you sent one)
+    - [ ] Super admin Overview shows the "class requests waiting" banner; Classes page lists the request with the note
+    - [ ] Approve → class created, requester becomes President, pending page moves them to the board by itself; request disappears
+    - [ ] Reject → request disappears; requester can send a new one
+    - [ ] User page › Make super admin → badge appears, they get the admin panel; Remove super admin → gone; the button doesn't show on your own page or on deactivated accounts
+- [ ] (User) Manual test: edit someone's post with `posts.edit_any` → "edited by" shows your name; pin / delete don't change it
+
 ### Phase 6 — Polish + launch (days 23–25)
 
 - [ ] Install Java 21 (winget); emulator + automated rules tests
@@ -163,7 +194,7 @@ User decisions: gallery (not inline) photos, max 3 per post; quotes + divider, n
 ## Blocked / waiting
 
 - Nothing blocking. Unused GitHub environment variables cleaned up (user, 2026-10-15).
-- `dev` pushed; merge to `main` waits until the user finishes the Phase 2b–5 manual tests.
+- Merge `dev` → `main` waits until the user finishes the Phase 2b–5b / presidents / votes manual tests.
 
 ---
 

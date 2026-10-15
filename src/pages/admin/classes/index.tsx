@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { Link } from 'react-router';
 
 import { ClassFormDialog } from '@/components/admin/class-form-dialog';
+import { ClassRequestsCard } from '@/components/admin/class-requests-card';
 import { ConfirmDialog } from '@/components/common/confirm-dialog';
 import { FormMessage } from '@/components/common/form-message';
 import { PageLoader } from '@/components/common/page-loader';
@@ -20,7 +21,7 @@ import { useCollection } from '@/hooks/use-collection';
 import { useAllMemberships } from '@/hooks/use-collection-group';
 import { setClassArchived, sortClasses } from '@/lib/classes';
 import { getErrorMessage } from '@/lib/errors';
-import type { ClassGroup, UserProfile } from '@/types';
+import type { ClassGroup, ClassRequest, UserProfile } from '@/types';
 
 type DialogState =
     | { type: 'form'; classGroup: ClassGroup | null }
@@ -31,10 +32,13 @@ type DialogState =
 export default function AdminClasses() {
     const classes = useCollection<ClassGroup>('classes');
     const users = useCollection<UserProfile>('users');
+    const requests = useCollection<ClassRequest>('classRequests');
     const memberships = useAllMemberships(true);
     const [dialog, setDialog] = useState<DialogState>(null);
 
-    const error = classes.error ?? users.error ?? memberships.error;
+    const error =
+        classes.error ?? users.error ?? requests.error ?? memberships.error;
+    const usersById = new Map(users.data.map((user) => [user.id, user]));
     const deactivatedIds = new Set(
         users.data
             .filter((user) => user.deletedAt !== null)
@@ -55,8 +59,9 @@ export default function AdminClasses() {
                 <div>
                     <h1 className="text-2xl font-semibold">Classes</h1>
                     <p className="text-sm text-muted-foreground">
-                        New classes start with a Student role. Archive old
-                        cohorts instead of deleting them.
+                        New classes start with a Student role (and a President
+                        role if you pick one). Archive old cohorts instead of
+                        deleting them.
                     </p>
                 </div>
                 <Button
@@ -70,6 +75,15 @@ export default function AdminClasses() {
             </div>
 
             {error && <FormMessage message={getErrorMessage(error)} />}
+
+            <ClassRequestsCard
+                requests={[...requests.data].sort(
+                    (a, b) =>
+                        (a.createdAt?.toMillis() ?? 0) -
+                        (b.createdAt?.toMillis() ?? 0),
+                )}
+                usersById={usersById}
+            />
 
             {classes.loading || users.loading || memberships.loading ? (
                 <PageLoader />
@@ -165,6 +179,7 @@ export default function AdminClasses() {
             {dialog?.type === 'form' && (
                 <ClassFormDialog
                     classGroup={dialog.classGroup}
+                    users={users.data}
                     onClose={() => setDialog(null)}
                 />
             )}

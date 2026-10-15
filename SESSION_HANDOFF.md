@@ -38,7 +38,7 @@
 - **Single-page app** with two looks: **Reddit-style student board** (`/`) and **CRM-style admin panel** (`/admin/*`, lazy-loaded).
 - **Classes are the anchor:** all class data lives under `classes/{classId}` (members pivot, roles, join requests, posts, comments). Users can be in many classes; new users pick a class at sign-up and stay **pending** until someone with `students.manage` approves.
 - **Roles:** super admin (`admins/{uid}`) → class → each class's **own ranked roles** (`classes/{c}/roles`, one role per member). "Officers" are just roles with admin permissions. You only manage roles/people ranked below you and only grant permissions you hold.
-- **Content:** posts (`classes/{c}/posts`, embedded `links` array) + Reddit-style threaded comments (`.../posts/{p}/comments`, `ancestorIds` path, depth 5). Timestamps everywhere; soft deletes on users, posts, comments. No file uploads (links to external apps). No upvotes in v1. No email blast in v1 (`mailto:` BCC / EmailJS later); SMS has no free path (Remind/GroupMe link).
+- **Content:** posts (`classes/{c}/posts`, rich HTML + ≤3 photos as Firestore bytes, embedded `links`) + threaded comments + votes (`…/votes/{uid}`, score on the post/comment). Soft deletes on users, posts, comments. Roster email (`mailto:` BCC) + text (`sms:` links) behind `students.message`.
 - **Data model** is fixed in the plan § Data model (decided 2026-10-08) — read it before touching Firestore code.
 - **Security model:** `firestore.rules` is the backend contract (like Laravel policies + Form Requests). Never rely on UI checks alone.
 
@@ -79,39 +79,22 @@
 
 ### Last session
 
-**2026-10-15 (session 4) — Phase 2b (per-class roles), Phase 3 (board + posts), Phase 4 (threaded comments), Phase 5 (admin panel)**
+**2026-10-15 (session 4) — Phases 2b–5b, presidents, votes**
 
-- **All built, deployed (rules + indexes) and passing checks — but NOT manually tested yet.** The user has only tested adding themselves to a class. Next session starts with a local testing checklist for the user.
-- **Phase 2b:** rewrote `firestore.rules` (super admin, `canIn` via member → class role, rank checks, no escalation, join requests, invites with `createdBy`/`createdInClassId`, member phone copy). Sign-up class picker + `/pending` request/cancel. Admin: class switcher, class **Students** (roster with phones, approve/reject join requests, invite new account, change role, remove), class **Roles** editor (rank, color, permission checkboxes), super admin **All classes** / **All users**. New classes start with only a **Student** role.
-- **Super admin joins a class** via **Add existing user** on a class's Students page (super admin only; copies the phone from `userContacts`; rule allows that phone source).
-- **Production migration done (with OK):** `admins/lWLOvCyPTPeAazxpfMrRCKlM9ik2` created; Kynt's user doc cleaned (`roleIds`/`permissions` removed, `createdBy`/`createdInClassId` null); global `roles/*` deleted.
-- **Phase 3:** `board-layout` (top bar, class switcher, user menu), routes under `/classes/:classId` (feed, `posts/new`, `posts/:postId`, `posts/:postId/edit`), feed pinned-first with "load more" by 20 + title search, right sidebar (class info, pinned links), post create/edit/soft delete/pin, archived classes read-only. Links render http(s) only. `docData` now uses estimated server timestamps.
-- **Phase 4:** comments with `parentId` + `ancestorIds` (rules enforce parent chain + depth ≤ 5), reply/edit/delete, collapse threads, "[deleted]" placeholders (deleted text stays private), counts via `count()` on feed cards.
-- **Phase 5:** admin dashboards (super admin `/admin`: open classes, active/deactivated users, pending join requests, class list; class overview: members, join requests, posts, deleted posts — all `count()`), breadcrumbs + class-aware "Open board" in the admin header, **Moderation** page (all/live/deleted posts, delete/restore, expand for comments with delete/restore), roster row selection + **Email selected** (mailto BCC / copy), super admin **user page** `/admin/users/:userId`. Deployed rules (super admin collection-group reads of posts/comments) + indexes. Data-table upgrade skipped. Renamed `useMyMemberships`/`useMyJoinRequests` → `useMembershipsOf`/`useJoinRequestsOf`.
-- **Phase 5b (after the Phase 5 commit, not yet committed):** Tiptap rich-text post editor (HTML + DOMPurify on render, lazy chunk), photo gallery (≤3 per post, browser-compressed, Firestore bytes in `posts/{p}/images`), `students.message` permission gating roster selection / Email / new **Text selected** (`sms:` group texts, batches of 30, opted-in only; `smsOptIn` copied onto join requests + memberships). Rules updated, validated and deployed (with OK). Votes-are-immutable decision recorded in the plan.
-- Tests: 75 passing. Shadcn `dropdown-menu` + `textarea` added (imports fixed).
-
-**2026-10-08 (session 3) — Planning, then Phase 1 (auth) and Phase 2 (rules, roles, admin panel)**
-
-- **Phase 1 done + tested:** stepper sign-up, login/logout/forgot password, `/pending`, route guards. Verified with `ktabudlong@student.ccc.edu`.
-- **Phase 2 built:** full `firestore.rules` for `users` / `userContacts` / `classes` / `roles` (deployed); roles seeded; that account is now the first admin. Lazy-loaded admin panel at `/#/admin` (`admin-layout`, sidebar filtered by permission) with a **classes table** (add/edit/archive) and a **users table** (search by first/last name, status filter, add user via second app instance + set-password email, edit, approve, assign classes/roles, deactivate/restore). Student role can create posts (user's choice). Firestore hooks `use-document` / `use-collection`; plain logic in `src/lib/` with Vitest tests (30 passing).
-- **Admin landing:** users with admin permissions land on `/admin` after login; the admin header's "Open board" opens `/` in a new tab. User chose to keep hash URLs.
-- **Class is the anchor (user decision):** `classes/{classId}/members/{uid}` pivot (one doc per person per class) replaces `users.classIds`; **roles are per class** (on the membership, class permissions only) and `users.roleIds` are **app-wide roles** (apply in every class + admin panel); posts/comments will live at `classes/{classId}/posts/{postId}/comments/{id}`. Pending = no memberships and no app-wide roles. New: `use-memberships` (collection-group queries), `lib/memberships` (pivot diff), `class-roles-field`, `canIn()` in auth context.
-- **Per-class roles DESIGNED, NOT BUILT** (end of session; plan § Data model, § Authorization rules, § Admin panel): super admin (`admins/{uid}`) → class → **class-owned ranked roles** (`classes/{c}/roles`, one role per member, no permission copies); class permissions `admin.access`, `students.view`, `students.manage`, `roles.manage` + content; officers get a class-scoped admin panel (class switcher); students **pick their class at sign-up** (join request) and officers approve; officers can also create accounts; `users.createdBy` (null = self sign-up) and `members.addedBy`; **all classmates see phones** (copy on each membership). New classes start with Student + President.
-- **Not done:** the per-class roles build (ROADMAP Phase 2b). The interim model (global `roles`, `members.roleIds` + `permissions`, app-wide `users.roleIds`) is what's deployed. The user's manual `/admin` test is deferred until 2b. Posts/comments rules arrive with Phases 3–4. Admin-header breadcrumbs moved to Phase 5.
-
-- **Data model decided** (plan § Data model): `classes`, `roles/{slug}` (master table; permissions are code constants stored per role), `users/{uid}` (`classIds[]`, `roleIds[]`, derived `permissions[]`), private `userContacts/{uid}` (E.164 phone + SMS opt-in; separate doc because rules are per document), `posts` (`classId`, `userId`, embedded `links[{url,label}]`, `pinned`), `posts/{id}/comments` (threaded via `parentId`). camelCase fields; `createdAt`/`updatedAt` server timestamps; soft delete = `deletedAt` written as `null` on create. Author names joined client-side (no `authorName` copies); comment counts via `count()`.
-- **User decisions:** users can be in many classes; self-signed-up users are **pending** until an admin assigns class + roles; threaded comments kept; links embedded; **upvotes after launch**; app must stay a **single-page app**.
-- **Accounts (plan § Account creation):** **stepper sign-up** (account → verify email → profile → done; step derived from account state). Admins can also **create accounts directly** from the users table: second Firebase app instance + random hidden temp password + `sendPasswordResetEmail` as the "set your password" invite. User delete = soft delete (client can't delete others' Auth logins). Permissions `users.view` (table + contacts) and `users.manage` (CRUD/approve/assign); `users.manage` can only grant permissions it holds. **Users table (search by first/last name) + classes CRUD moved to Phase 2**; posts now Phase 3 (days 11–14).
-- **UI:** Reddit-style student board (`board-layout`, class switcher, right sidebar, comment thread lines) + CRM-style admin panel (`admin-layout`, lazy-loaded, sidebar, dashboard, `@tanstack/react-table` data tables with filters/bulk actions, detail pages, moderation/restore). Phase 5 grew to days 16–21; launch ~4 weeks.
-- **Rules/tooling:** new `.cursor/rules/react-standards.mdc` (SOLID in React terms, layers, SPA navigation); `GENERAL.mdc` gained SPA + MCP notes. `.cursor/mcp.json` adds the official **Firebase MCP** (`--only auth,firestore`) — points at production, ask before writes. Not yet signed in / project not selected.
-- Email burst: `mailto:` BCC / EmailJS later. SMS: no free path (Twilio needs server + A2P 10DLC; carrier gateways closing) → link to Remind/GroupMe.
+- **Built + rules/indexes deployed; checks green (82 tests). Nothing from this session manually tested yet** — user will walk the ROADMAP checklists next session, then commit/merge when happy.
+- **Phases 2b–5:** per-class roles, board + posts, threaded comments, admin dashboards / moderation / user page (details in prior notes; still in `ROADMAP.md`).
+- **Phase 5b:** Tiptap rich-text posts (DOMPurify on render), ≤3 photos as Firestore bytes, `students.message` + Email / Text selected (`sms:` batches of 30), `smsOptIn` on join requests + memberships.
+- **Edited by:** posts show last editor (`editedBy` / `editedAt`); not set on pin/delete.
+- **Class presidents + super admins:** optional President when adding a class; `classRequests/{uid}` (request from pending / board menu → approve/reject); President role = rank 1000 + every permission; Make/Remove super admin on the user page (can't remove yourself). Member create uses `existsAfter` / `getAfter` so class + roles + President can be one batch.
+- **Votes:** posts + comments; `…/votes/{uid}` value 1/−1; only the voter can read/change/remove; score via `increment()` in the same batch; feed **New / Top** (pinned first). New posts/comments start at `score: 0`. **Backfill `score: 0` on older posts** still open before Top is complete (optional until inviting the class).
+- User merges `dev` → `main` themselves after testing.
 
 ### Resume here
 
-1. **The user runs the local testing checklist** — the "(User) Manual test" sub-lists under Phases 2b–5b in `ROADMAP.md`; fix what they find.2. (User) Commit on `dev`; merge `dev` → `main` when happy (the live site still runs the pre-2b code).
-3. **Phase 6** — emulator + rules tests, mobile/accessibility pass, invite the class.
-4. Main bundle is ~976 kB (Firebase SDK + board); the admin panel is split out. Revisit chunking if load time matters.
+1. **User:** run the "(User) Manual test" checklists in `ROADMAP.md` (Phases 2b–5b, edited-by, presidents/super admins, votes). Fix what breaks.
+2. **User:** commit on `dev`, then merge `dev` → `main` when happy (Pages still on older `main` until then).
+3. Optional: backfill `score: 0` on pre-vote posts so **Top** includes them.
+4. **Phase 6** — Java + emulator rules tests, mobile/accessibility pass, invite the class.
 
 ### Caveats
 
@@ -121,6 +104,6 @@
 - `npx shadcn add …` writes `import { cn } from "cn"` (TS 6 has no `baseUrl`) — fix to `@/lib/utils` after each add.
 - Laragon's `.test` URL won't work for this project; always use `npm run dev`.
 - Firebase MCP has no emulator behind it yet — every write hits **production**. Ask the user first.
-- **Super admins** are created by hand: `admins/{uid}` `{ createdAt }` (console or MCP with the user's OK).
+- **First** super admin is created by hand (`admins/{uid}` `{ createdAt }`); after that, promote/remove from `/admin/users/:userId` (can't remove yourself).
 - Invites create the Auth login first, then a Firestore batch; if the batch fails the login exists without a profile (the student can still finish sign-up normally).
 - Firebase MCP read-back quirk: `firestore_update_document` / `firestore_get_document` error on fields that are `null` (e.g. `deletedAt`) even when the write succeeded. Pass a `mask` that skips null fields when reading.

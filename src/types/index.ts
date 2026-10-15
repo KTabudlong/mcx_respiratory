@@ -53,6 +53,18 @@ export type JoinRequest = {
     createdAt: Timestamp;
 };
 
+// classRequests/{uid} — someone asking the super admin to start a class
+// (one open request per person). Approving makes them its President.
+export type ClassRequest = {
+    id: string;
+    userId: string;
+    name: string;
+    startYear: number;
+    endYear: number | null;
+    note: string;
+    createdAt: Timestamp;
+};
+
 // users/{uid} — see the build plan § Data model. createdBy is null for self
 // sign-up, otherwise who invited them (and into which class).
 export type UserProfile = {
@@ -85,6 +97,11 @@ export type Post = {
     imageIds?: string[];
     links: PostLink[];
     pinned: boolean;
+    // Upvotes minus downvotes; missing on posts from before votes (= 0).
+    score?: number;
+    // Last content edit (not pins / deletes); missing until first edited.
+    editedBy?: string;
+    editedAt?: Timestamp;
     createdAt: Timestamp;
     updatedAt: Timestamp;
     deletedAt: Timestamp | null;
@@ -117,9 +134,21 @@ export type Comment = {
     parentId: string | null;
     ancestorIds: string[];
     body: string;
+    // Upvotes minus downvotes; missing on comments from before votes (= 0).
+    score?: number;
     createdAt: Timestamp;
     updatedAt: Timestamp;
     deletedAt: Timestamp | null;
+};
+
+export type VoteValue = 1 | -1;
+
+// <post or comment>/votes/{uid} — anonymous: only the voter can read it.
+export type Vote = {
+    id: string;
+    userId: string;
+    classId: string;
+    value: VoteValue;
 };
 
 // userContacts/{uid} — private source of truth for the phone + SMS consent:

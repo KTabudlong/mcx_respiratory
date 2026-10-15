@@ -19,11 +19,15 @@ type Snapshot = {
     error: Error | null;
 };
 
-// Live feed of one class: pinned first, then newest. "Load more" raises
-// `count`; like SQL's LIMIT, Firestore re-runs the query with the bigger
-// limit (already-loaded posts come from cache).
-export function usePosts(classId: string, count: number) {
-    const key = `${classId}|${count}`;
+export type FeedSort = 'new' | 'top';
+
+// Live feed of one class: pinned first, then newest (or highest score, then
+// newest). "Load more" raises `count`; like SQL's LIMIT, Firestore re-runs
+// the query with the bigger limit (already-loaded posts come from cache).
+// Top skips posts without a score field (from before votes) until they're
+// backfilled with score 0.
+export function usePosts(classId: string, count: number, sort: FeedSort) {
+    const key = `${classId}|${count}|${sort}`;
     const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
 
     useEffect(
@@ -33,6 +37,7 @@ export function usePosts(classId: string, count: number) {
                     collection(db, 'classes', classId, 'posts'),
                     where('deletedAt', '==', null),
                     orderBy('pinned', 'desc'),
+                    ...(sort === 'top' ? [orderBy('score', 'desc')] : []),
                     orderBy('createdAt', 'desc'),
                     limit(count),
                 ),
@@ -45,7 +50,7 @@ export function usePosts(classId: string, count: number) {
                     }),
                 (error) => setSnapshot({ key, classId, posts: [], error }),
             ),
-        [key, classId, count],
+        [key, classId, count, sort],
     );
 
     // While a bigger page loads, keep showing the posts already loaded.

@@ -10,11 +10,14 @@ import { PostActions } from '@/components/posts/post-actions';
 import { PostBody } from '@/components/posts/post-body';
 import { PostGallery } from '@/components/posts/post-gallery';
 import { PostMeta } from '@/components/posts/post-meta';
+import { VoteButtons } from '@/components/posts/vote-buttons';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/use-auth';
 import { useDocument } from '@/hooks/use-document';
+import { useMyVotes } from '@/hooks/use-my-votes';
 import { getErrorMessage } from '@/lib/errors';
-import { postAbilities } from '@/lib/permissions';
+import { canVoteIn, postAbilities } from '@/lib/permissions';
+import { postPath } from '@/lib/votes';
 import type { ClassGroup, Post, UserProfile } from '@/types';
 
 // /classes/:classId/posts/:postId
@@ -26,7 +29,11 @@ export default function PostShow() {
     const author = useDocument<UserProfile>(
         post.data ? `users/${post.data.userId}` : null,
     );
+    const editor = useDocument<UserProfile>(
+        post.data?.editedBy ? `users/${post.data.editedBy}` : null,
+    );
     const classGroup = useDocument<ClassGroup>(`classes/${classId}`);
+    const myVotes = useMyVotes(classId);
     const [actionError, setActionError] = useState('');
     const feedPath = `/classes/${classId}`;
 
@@ -61,11 +68,12 @@ export default function PostShow() {
         );
     }
 
+    const classOpen = classGroup.data?.archivedAt === null;
     const abilities = postAbilities(
         post.data,
         user?.uid,
         accessIn(classId),
-        classGroup.data?.archivedAt === null,
+        classOpen,
     );
 
     return (
@@ -77,6 +85,7 @@ export default function PostShow() {
                     <PostMeta
                         post={post.data}
                         author={author.data ?? undefined}
+                        editor={editor.data ?? undefined}
                     />
                     <PostActions
                         post={post.data}
@@ -91,13 +100,22 @@ export default function PostShow() {
                 <PostBody post={post.data} />
                 <PostGallery post={post.data} />
                 <LinkChips links={post.data.links} />
+                <VoteButtons
+                    targetPath={postPath(classId, postId)}
+                    classId={classId}
+                    score={post.data.score}
+                    myVote={myVotes.votes.get(postPath(classId, postId))}
+                    canVote={canVoteIn(accessIn(classId), classOpen)}
+                    onError={setActionError}
+                />
             </article>
             {author.error && (
                 <FormMessage message={getErrorMessage(author.error)} />
             )}
             <PostComments
                 post={post.data}
-                classOpen={classGroup.data?.archivedAt === null}
+                classOpen={classOpen}
+                myVotes={myVotes.votes}
             />
         </div>
     );

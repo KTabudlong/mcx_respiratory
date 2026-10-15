@@ -2,6 +2,7 @@ import type { FormEvent } from 'react';
 import { useState } from 'react';
 
 import { FormMessage } from '@/components/common/form-message';
+import { NativeSelect } from '@/components/common/native-select';
 import { Button } from '@/components/ui/button';
 import {
     Dialog,
@@ -13,6 +14,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { useAuth } from '@/hooks/use-auth';
 import {
     createClass,
     MAX_CLASS_NAME_LENGTH,
@@ -20,17 +22,23 @@ import {
     validateClass,
 } from '@/lib/classes';
 import { getErrorMessage } from '@/lib/errors';
-import type { ClassGroup } from '@/types';
+import { compareByName } from '@/lib/user-filters';
+import type { ClassGroup, UserProfile } from '@/types';
 
 // Rendered only while open; closing unmounts it so the form resets.
-// `classGroup` null = add a new class.
+// `classGroup` null = add a new class, optionally with a President picked
+// from `users` (they get a top-ranked role with every permission).
 export function ClassFormDialog({
     classGroup,
+    users,
     onClose,
 }: {
     classGroup: ClassGroup | null;
+    users: UserProfile[];
     onClose: () => void;
 }) {
+    const { user } = useAuth();
+    const [presidentId, setPresidentId] = useState('');
     const [name, setName] = useState(classGroup?.name ?? '');
     const [startYear, setStartYear] = useState(
         String(classGroup?.startYear ?? new Date().getFullYear()),
@@ -63,7 +71,7 @@ export function ClassFormDialog({
             if (classGroup) {
                 await updateClass(classGroup.id, input);
             } else {
-                await createClass(input);
+                await createClass(input, presidentId || null, user?.uid ?? '');
             }
 
             onClose();
@@ -126,6 +134,39 @@ export function ClassFormDialog({
                             />
                         </div>
                     </div>
+                    {!classGroup && (
+                        <div className="grid gap-2">
+                            <Label htmlFor="class-president">
+                                President{' '}
+                                <span className="font-normal text-muted-foreground">
+                                    (optional)
+                                </span>
+                            </Label>
+                            <NativeSelect
+                                id="class-president"
+                                value={presidentId}
+                                onChange={(event) =>
+                                    setPresidentId(event.target.value)
+                                }
+                            >
+                                <option value="">No President yet</option>
+                                {[...users]
+                                    .filter((item) => item.deletedAt === null)
+                                    .sort(compareByName)
+                                    .map((item) => (
+                                        <option key={item.id} value={item.id}>
+                                            {item.lastName}, {item.firstName} (
+                                            {item.email})
+                                        </option>
+                                    ))}
+                            </NativeSelect>
+                            <p className="text-xs text-muted-foreground">
+                                Adds a President role with every permission in
+                                this class and gives it to this person. Leave
+                                empty for a class with only the Student role.
+                            </p>
+                        </div>
+                    )}
                     <DialogFooter>
                         <Button
                             type="button"

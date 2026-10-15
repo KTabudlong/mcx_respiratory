@@ -1,5 +1,5 @@
-import { GraduationCap, Inbox, UserCheck, UserX } from 'lucide-react';
-import { Navigate } from 'react-router';
+import { GraduationCap, Inbox, School, UserCheck, UserX } from 'lucide-react';
+import { Link, Navigate } from 'react-router';
 
 import { AdminClassList } from '@/components/admin/admin-class-list';
 import { StatCard } from '@/components/admin/stat-card';
@@ -11,13 +11,16 @@ import { useDocuments } from '@/hooks/use-documents';
 import { useSiteStats } from '@/hooks/use-stats';
 import { sortClasses } from '@/lib/classes';
 import { getErrorMessage } from '@/lib/errors';
-import type { ClassGroup } from '@/types';
+import type { ClassGroup, ClassRequest } from '@/types';
 
 // /admin — super admins get site-wide numbers and every class; class admins
 // with one class go straight to it, with several they pick one.
 export default function AdminIndex() {
     const { isSuperAdmin, adminClassIds } = useAuth();
     const site = useSiteStats(isSuperAdmin);
+    const classRequests = useCollection<ClassRequest>(
+        isSuperAdmin ? 'classRequests' : null,
+    );
     const allClasses = useCollection<ClassGroup>(
         isSuperAdmin ? 'classes' : null,
     );
@@ -56,6 +59,17 @@ export default function AdminIndex() {
                     <FormMessage
                         message={site.error ? getErrorMessage(site.error) : ''}
                     />
+                    {classRequests.data.length > 0 && (
+                        <Link
+                            to="/admin/classes"
+                            className="flex items-center gap-2 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm font-medium text-amber-900 hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100 dark:hover:bg-amber-900"
+                        >
+                            <School aria-hidden className="size-4 shrink-0" />
+                            {classRequests.data.length === 1
+                                ? '1 class request is waiting for you'
+                                : `${classRequests.data.length} class requests are waiting for you`}
+                        </Link>
+                    )}
                     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                         <StatCard
                             label="Open classes"

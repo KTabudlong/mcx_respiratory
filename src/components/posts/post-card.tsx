@@ -10,15 +10,20 @@ import { cn } from '@/lib/utils';
 import type { Post, UserProfile } from '@/types';
 
 // Compact feed card: meta, title (links to the post), a body preview and
-// link chips. `actions` is the "…" menu, if the user has any.
+// link chips. `actions` is the "…" menu, if the user has any; `votes` the
+// vote buttons.
 export function PostCard({
     post,
     author,
+    editor,
     actions,
+    votes,
 }: {
     post: Post;
     author: UserProfile | undefined;
+    editor: UserProfile | undefined;
     actions?: ReactNode;
+    votes?: ReactNode;
 }) {
     const preview = postBodyText(post);
     const imageCount = post.imageIds?.length ?? 0;
@@ -31,7 +36,7 @@ export function PostCard({
             )}
         >
             <div className="flex items-start justify-between gap-2">
-                <PostMeta post={post} author={author} />
+                <PostMeta post={post} author={author} editor={editor} />
                 {actions}
             </div>
             <h2 className="text-lg leading-snug font-semibold break-words">
@@ -49,6 +54,7 @@ export function PostCard({
             )}
             <LinkChips links={post.links} />
             <div className="flex flex-wrap items-center gap-4">
+                {votes}
                 <CommentCountLink post={post} />
                 {imageCount > 0 && (
                     <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">

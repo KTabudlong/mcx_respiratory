@@ -8,38 +8,53 @@ import { PageLoader } from '@/components/common/page-loader';
 import { SearchInput } from '@/components/common/search-input';
 import { PostActions } from '@/components/posts/post-actions';
 import { PostCard } from '@/components/posts/post-card';
+import { VoteButtons } from '@/components/posts/vote-buttons';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/use-auth';
 import { useCollection } from '@/hooks/use-collection';
 import { useDocument } from '@/hooks/use-document';
+import { useMyVotes } from '@/hooks/use-my-votes';
+import type { FeedSort } from '@/hooks/use-posts';
 import { usePosts } from '@/hooks/use-posts';
 import { useUsersById } from '@/hooks/use-users-by-id';
 import { getErrorMessage } from '@/lib/errors';
-import { hasClassPermission, postAbilities } from '@/lib/permissions';
+import {
+    canVoteIn,
+    hasClassPermission,
+    postAbilities,
+} from '@/lib/permissions';
 import { FEED_PAGE_SIZE } from '@/lib/posts';
+import { postPath } from '@/lib/votes';
 import type { ClassGroup, ClassMember } from '@/types';
 
 function ClassFeed({ classId }: { classId: string }) {
     const { user, accessIn } = useAuth();
     const access = accessIn(classId);
     const [count, setCount] = useState(FEED_PAGE_SIZE);
+    const [sort, setSort] = useState<FeedSort>('new');
     const [search, setSearch] = useState('');
     const [actionError, setActionError] = useState('');
 
     const classGroup = useDocument<ClassGroup>(`classes/${classId}`);
     const members = useCollection<ClassMember>(`classes/${classId}/members`);
-    const feed = usePosts(classId, count);
-    const authors = useUsersById(feed.posts.map((post) => post.userId));
+    const feed = usePosts(classId, count, sort);
+    const myVotes = useMyVotes(classId);
+    const authors = useUsersById(
+        feed.posts.flatMap((post) =>
+            post.editedBy ? [post.userId, post.editedBy] : [post.userId],
+        ),
+    );
 
     const classOpen = classGroup.data?.archivedAt === null;
     const canPost = classOpen && hasClassPermission(access, 'posts.create');
+    const canVote = canVoteIn(access, classOpen);
     const query = search.trim().toLowerCase();
     const posts = query
         ? feed.posts.filter((post) => post.title.toLowerCase().includes(query))
         : feed.posts;
     const firstLoad = feed.loading && feed.posts.length === 0;
-    const error = feed.error ?? classGroup.error;
+    const error = feed.error ?? classGroup.error ?? myVotes.error;
 
     return (
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_18rem]">
@@ -48,12 +63,34 @@ function ClassFeed({ classId }: { classId: string }) {
                     <h1 className="text-xl font-semibold lg:sr-only">
                         {classGroup.data?.name ?? 'Class board'}
                     </h1>
-                    <SearchInput
-                        value={search}
-                        onChange={setSearch}
-                        label="Search loaded posts by title"
-                        placeholder="Search post titles"
-                    />
+                    <div className="flex flex-wrap items-center gap-2">
+                        <div
+                            role="group"
+                            aria-label="Sort posts"
+                            className="inline-flex rounded-md border p-0.5"
+                        >
+                            {(['new', 'top'] as const).map((option) => (
+                                <Button
+                                    key={option}
+                                    size="sm"
+                                    variant={
+                                        sort === option ? 'secondary' : 'ghost'
+                                    }
+                                    className="h-7 px-3"
+                                    aria-pressed={sort === option}
+                                    onClick={() => setSort(option)}
+                                >
+                                    {option === 'new' ? 'New' : 'Top'}
+                                </Button>
+                            ))}
+                        </div>
+                        <SearchInput
+                            value={search}
+                            onChange={setSearch}
+                            label="Search loaded posts by title"
+                            placeholder="Search post titles"
+                        />
+                    </div>
                 </div>
 
                 {classGroup.data && !classOpen && (
@@ -91,6 +128,26 @@ function ClassFeed({ classId }: { classId: string }) {
                                 <PostCard
                                     post={post}
                                     author={authors.get(post.userId)}
+                                    editor={
+                                        post.editedBy
+                                            ? authors.get(post.editedBy)
+                                            : undefined
+                                    }
+                                    votes={
+                                        <VoteButtons
+                                            targetPath={postPath(
+                                                classId,
+                                                post.id,
+                                            )}
+                                            classId={classId}
+                                            score={post.score}
+                                            myVote={myVotes.votes.get(
+                                                postPath(classId, post.id),
+                                            )}
+                                            canVote={canVote}
+                                            onError={setActionError}
+                                        />
+                                    }
                                     actions={
                                         <PostActions
                                             post={post}

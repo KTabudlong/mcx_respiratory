@@ -107,6 +107,12 @@ export function postAbilities(
     };
 }
 
+// Mirrors the votes rules: anyone in the class (members and super admins),
+// authors included, while the class is open.
+export function canVoteIn(access: ClassAccess, classOpen: boolean) {
+    return classOpen && (access.isSuperAdmin || access.role !== undefined);
+}
+
 // Mirrors the comments rules: anyone in the class replies (up to the depth
 // limit), only the author edits, the author or comments.delete_any deletes.
 export function commentAbilities(

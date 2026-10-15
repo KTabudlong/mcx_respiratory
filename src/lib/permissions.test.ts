@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import type { ClassAccess } from '@/lib/permissions';
 import {
     assignableRoles,
+    canVoteIn,
     commentAbilities,
     defaultRole,
     grantablePermissions,
@@ -104,6 +105,23 @@ describe('assignableRoles / defaultRole', () => {
     it('defaults join requests to the lowest assignable role', () => {
         expect(defaultRole(roles, asPresident)?.id).toBe('student');
         expect(defaultRole([president], asPresident)).toBeUndefined();
+    });
+});
+
+describe('canVoteIn', () => {
+    it('lets members and super admins vote while the class is open', () => {
+        expect(canVoteIn({ isSuperAdmin: false, role: student }, true)).toBe(
+            true,
+        );
+        expect(canVoteIn({ isSuperAdmin: true, role: undefined }, true)).toBe(
+            true,
+        );
+        expect(canVoteIn({ isSuperAdmin: false, role: student }, false)).toBe(
+            false,
+        );
+        expect(canVoteIn({ isSuperAdmin: false, role: undefined }, true)).toBe(
+            false,
+        );
     });
 });
 
