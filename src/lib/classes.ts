@@ -11,6 +11,7 @@ import {
 import type { WriteBatch } from 'firebase/firestore';
 
 import { db } from '@/lib/firebase';
+import { addNotification } from '@/lib/notifications';
 import { MAX_ROLE_RANK, PERMISSIONS } from '@/lib/permissions';
 import type { ClassGroup, ClassRequest, UserContact } from '@/types';
 
@@ -142,6 +143,14 @@ async function writeNewClass(
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp(),
         });
+
+        if (presidentId !== createdBy) {
+            addNotification(batch, presidentId, createdBy, {
+                type: 'added',
+                classId: classRef.id,
+                roleName: PRESIDENT_ROLE.name,
+            });
+        }
     }
 
     extra?.(batch);

@@ -1,9 +1,11 @@
 import { useState } from 'react';
-import { Navigate } from 'react-router';
+import { Link, Navigate } from 'react-router';
 
 import { AdminLink } from '@/components/auth/admin-link';
 import { ClassPicker } from '@/components/auth/class-picker';
+import { ClassInvites } from '@/components/board/class-invites';
 import { ClassRequestDialog } from '@/components/board/class-request-dialog';
+import { NotificationList } from '@/components/board/notification-list';
 import { FormMessage } from '@/components/common/form-message';
 import { Button } from '@/components/ui/button';
 import {
@@ -17,9 +19,11 @@ import { useAuth } from '@/hooks/use-auth';
 import { useCollection } from '@/hooks/use-collection';
 import { useJoinRequestsOf } from '@/hooks/use-collection-group';
 import { useDocument } from '@/hooks/use-document';
+import { useNotifications } from '@/hooks/use-notifications';
 import { isApproved } from '@/lib/account-status';
 import { logOut } from '@/lib/auth';
 import { getErrorMessage } from '@/lib/errors';
+import { markNotificationsRead } from '@/lib/notifications';
 import { cancelJoinRequest, requestToJoin } from '@/lib/profile';
 import type { ClassGroup, ClassRequest } from '@/types';
 
@@ -35,6 +39,10 @@ export default function Pending() {
     const classRequest = useDocument<ClassRequest>(
         profile && !deactivated ? `classRequests/${profile.id}` : null,
     );
+    const notifications = useNotifications(
+        profile && !deactivated ? profile.id : null,
+    );
+    const unread = notifications.data.filter((item) => !item.read);
     const [requestOpen, setRequestOpen] = useState(false);
     const [classId, setClassId] = useState('');
     const [error, setError] = useState('');
@@ -92,6 +100,27 @@ export default function Pending() {
                         (requests.error ? getErrorMessage(requests.error) : '')
                     }
                 />
+                {profile && unread.length > 0 && (
+                    <div className="grid gap-2 rounded-md border p-2">
+                        <NotificationList notifications={unread} />
+                        <Button
+                            size="sm"
+                            variant="ghost"
+                            className="justify-self-end"
+                            onClick={() =>
+                                run(() =>
+                                    markNotificationsRead(
+                                        profile.id,
+                                        unread.map((item) => item.id),
+                                    ),
+                                )
+                            }
+                        >
+                            Dismiss
+                        </Button>
+                    </div>
+                )}
+                <ClassInvites />
                 {!deactivated && requests.data.length > 0 && (
                     <ul className="grid gap-2">
                         {requests.data.map((request) => (
@@ -194,6 +223,11 @@ export default function Pending() {
                     <ClassRequestDialog onClose={() => setRequestOpen(false)} />
                 )}
                 <AdminLink />
+                {!deactivated && (
+                    <Button asChild variant="outline">
+                        <Link to="/profile">Profile</Link>
+                    </Button>
+                )}
                 <Button variant="outline" onClick={() => logOut()}>
                     Log out
                 </Button>

@@ -163,6 +163,15 @@ service cloud.firestore {
       return getAfter(docPath('userContacts', request.auth.uid)).data.smsOptIn;
     }
 
+    function myEmail() {
+      return request.auth.token.email.lower();
+    }
+
+    // Class invites for existing accounts are keyed by school email.
+    function invitePath(classId, email) {
+      return /databases/$(database)/documents/classes/$(classId)/invites/$(email);
+    }
+
     // ---------- super admins ----------
 
     match /admins/{uid} {
@@ -245,16 +254,62 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    // ---------- private contact info (source of truth + SMS consent) ----------
+    // ---------- notifications (class changes, written by whoever made them) ----------
+    //
+    // Created in the same batch as the change itself, and must describe it:
+    // added (membership created by me), role_changed (role differs after the
+    // batch), removed (membership deleted). roleName is the role after the
+    // change. Only the owner reads, marks read, or clears them.
+    function notificationMatches(classId, uid, data) {
+      let member = memberPath(classId, uid);
+      return (data.type == 'added'
+          && !exists(member)
+          && existsAfter(member)
+          && getAfter(member).data.addedBy == request.auth.uid
+          && data.roleName == getAfter(rolePath(classId, getAfter(member).data.roleId)).data.name)
+        || (data.type == 'role_changed'
+          && exists(member)
+          && existsAfter(member)
+          && getAfter(member).data.roleId != get(member).data.roleId
+          && data.roleName == getAfter(rolePath(classId, getAfter(member).data.roleId)).data.name)
+        || (data.type == 'removed'
+          && exists(member)
+          && !existsAfter(member)
+          && data.roleName == '');
+    }
+
+    match /users/{uid}/notifications/{notificationId} {
+      allow read, delete: if isOwner(uid);
+
+      allow create: if isActive()
+        && !isOwner(uid)
+        && incoming().keys().hasOnly(['type', 'classId', 'roleName', 'actorId', 'read', 'createdAt'])
+        && incoming().type in ['added', 'role_changed', 'removed']
+        && incoming().classId is string
+        && incoming().roleName is string
+        && incoming().actorId == request.auth.uid
+        && incoming().read == false
+        && incoming().createdAt == request.time
+        && notificationMatches(incoming().classId, uid, incoming());
+
+      allow update: if isOwner(uid)
+        && changedKeys().hasOnly(['read'])
+        && incoming().read == true;
+    }
+
+    // ---------- private contact info (source of truth + consent) ----------
 
     match /userContacts/{uid} {
       allow read: if isOwner(uid) || isSuperAdmin();
 
-      // Only the owner writes it, so SMS consent always comes from the student.
+      // Only the owner writes it, so SMS and email consent always come from
+      // the student. Email consent is optional (older docs don't have it).
       allow create, update: if isMember()
         && isOwner(uid)
         && (!exists(myPath()) || get(myPath()).data.deletedAt == null)
-        && incoming().keys().hasOnly(['phone', 'smsOptIn', 'smsOptInAt', 'updatedAt'])
+        && incoming().keys().hasOnly([
+          'phone', 'smsOptIn', 'smsOptInAt', 'emailOptIn', 'emailOptInAt', 'updatedAt'
+        ])
         && incoming().keys().hasAll(['phone', 'smsOptIn', 'smsOptInAt', 'updatedAt'])
         && isValidPhone(incoming().phone)
         && incoming().smsOptIn is bool
@@ -263,6 +318,11 @@ service cloud.firestore {
             && incoming().smsOptInAt is timestamp)
           || (incoming().smsOptIn == false
             && incoming().smsOptInAt == null))
+        && incoming().get('emailOptIn', false) is bool
+        && ((incoming().get('emailOptIn', false) == true
+            && incoming().emailOptInAt is timestamp)
+          || (incoming().get('emailOptIn', false) == false
+            && incoming().get('emailOptInAt', null) == null))
         && incoming().updatedAt == request.time;
 
       allow delete: if false;
@@ -280,6 +340,11 @@ service cloud.firestore {
     match /{path=**}/joinRequests/{requestId} {
       allow read: if (isActive() && resource.data.userId == request.auth.uid)
         || isSuperAdmin();
+    }
+
+    // "My invites" filters on email == my school email.
+    match /{path=**}/invites/{email} {
+      allow read: if isMember() && resource.data.email == myEmail();
     }
 
     // One user's posts / comments across every class (super admin user page).
@@ -429,6 +494,27 @@ service cloud.firestore {
           && incoming().createdAt == request.time
           && incoming().updatedAt == request.time;
 
+        // Accept an invite: the invitee adds themselves with the invited role
+        // and their own phone / SMS consent, deleting the invite in the same
+        // batch. addedBy stays the person who invited them.
+        allow create: if isActive()
+          && isOwner(memberId)
+          && exists(invitePath(classId, myEmail()))
+          && !existsAfter(invitePath(classId, myEmail()))
+          && get(/databases/$(database)/documents/classes/$(classId)).data.archivedAt == null
+          && incoming().keys().hasOnly([
+            'userId', 'roleId', 'phone', 'smsOptIn', 'addedBy', 'createdAt', 'updatedAt'
+          ])
+          && incoming().userId == memberId
+          && incoming().roleId == get(invitePath(classId, myEmail())).data.roleId
+          && incoming().addedBy == get(invitePath(classId, myEmail())).data.invitedBy
+          && exists(rolePath(classId, incoming().roleId))
+          && incoming().phone == myPhoneAfter()
+          && incoming().get('smsOptIn', false) is bool
+          && (incoming().get('smsOptIn', false) == false || mySmsOptInAfter() == true)
+          && incoming().createdAt == request.time
+          && incoming().updatedAt == request.time;
+
         // Change someone's role: both their current and new role must rank
         // below yours.
         allow update: if canIn(classId, 'students.manage')
@@ -474,6 +560,31 @@ service cloud.firestore {
 
         // Cancel (requester), reject or approve (students.manage).
         allow delete: if isOwner(requestId) || canIn(classId, 'students.manage');
+        allow update: if false;
+      }
+
+      // ----- invites (an existing account asked to join; they accept) -----
+      //
+      // The doc ID is the invitee's school email (lowercase). roleName is a
+      // copy because the invitee can't read the class's roles yet.
+      match /invites/{email} {
+        allow read: if canIn(classId, 'students.manage')
+          || (isMember() && email == myEmail());
+
+        allow create: if canIn(classId, 'students.manage')
+          && get(/databases/$(database)/documents/classes/$(classId)).data.archivedAt == null
+          && incoming().keys().hasOnly(['email', 'roleId', 'roleName', 'invitedBy', 'createdAt'])
+          && incoming().email == email
+          && isSchoolEmail(email)
+          && exists(rolePath(classId, incoming().roleId))
+          && incoming().roleName == get(rolePath(classId, incoming().roleId)).data.name
+          && outranks(classId, roleRank(classId, incoming().roleId))
+          && incoming().invitedBy == request.auth.uid
+          && incoming().createdAt == request.time;
+
+        // Cancel (students.manage), or decline / accept (the invitee).
+        allow delete: if canIn(classId, 'students.manage')
+          || (isMember() && email == myEmail());
         allow update: if false;
       }
 

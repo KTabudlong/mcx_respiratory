@@ -75,26 +75,29 @@
 
 ## Continuity (rolling — agent updates on end session)
 
-**Last updated:** 2026-10-15
+**Last updated:** 2026-10-19
 
 ### Last session
 
-**2026-10-15 (session 4) — Phases 2b–5b, presidents, votes**
+**2026-10-19 (session 5) — manual testing started; invites, notifications, email consent, profile**
 
-- **Built + rules/indexes deployed; checks green (82 tests). Nothing from this session manually tested yet** — user will walk the ROADMAP checklists next session, then commit/merge when happy.
-- **Phases 2b–5:** per-class roles, board + posts, threaded comments, admin dashboards / moderation / user page (details in prior notes; still in `ROADMAP.md`).
-- **Phase 5b:** Tiptap rich-text posts (DOMPurify on render), ≤3 photos as Firestore bytes, `students.message` + Email / Text selected (`sms:` batches of 30), `smsOptIn` on join requests + memberships.
-- **Edited by:** posts show last editor (`editedBy` / `editedAt`); not set on pin/delete.
-- **Class presidents + super admins:** optional President when adding a class; `classRequests/{uid}` (request from pending / board menu → approve/reject); President role = rank 1000 + every permission; Make/Remove super admin on the user page (can't remove yourself). Member create uses `existsAfter` / `getAfter` so class + roles + President can be one batch.
-- **Votes:** posts + comments; `…/votes/{uid}` value 1/−1; only the voter can read/change/remove; score via `increment()` in the same batch; feed **New / Top** (pinned first). New posts/comments start at `score: 0`. **Backfill `score: 0` on older posts** still open before Top is complete (optional until inviting the class).
-- User merges `dev` → `main` themselves after testing.
+- **Testing (in class, local dev):** test setup = classA (testA promoted Student → President), classB (empty), testB (no class). President sees the class admin pages ✅. **Found:** the President role was created at **rank 1** (same as Student), so testA had no role below theirs to assign → Invite disabled / no role changes. Not a bug — raise President's rank (e.g. 1000) on classA › Roles as super admin.
+- **Built (all checks green, 85 tests, build OK; rules + `invites.email` index deployed to production):**
+  - Role dropdown on Students asks for confirmation; Rank tooltip on Roles.
+  - **Invites for existing accounts** (`classes/{c}/invites/{email}`): Invite form creates a new account, or (email already registered) an invite the person accepts / declines on the board or `/pending`. Officers still can't browse users or read contacts — that's why there's an accept step (user chose this after reviewing the ERD; pivot = `members`, no user data copied).
+  - **Notifications** (`users/{uid}/notifications`): written in the same batch as add / approve / invite / role change / remove / President of a new class; rules check each matches the change. Bell on the board; unread on `/pending`.
+  - **Email consent** (`userContacts.emailOptIn`, optional in rules) + **`/profile`** page (name, phone, SMS + email consent). No email is sent yet.
+- **Agreed, not built:** super admin edits a user's name + phone with a change log; SMS / email consent stays student-only. Email delivery for notifications undecided (EmailJS vs `mailto:`).
+- **Untested risk:** notification rules add `exists`/`getAfter` calls to already heavy batches (Firestore limit 20 per batch). If approve / invite / President-class creation fails with permission-denied, check that first.
+- **Accounts:** user created classmates' accounts from local dev. Invited people must set their password + save their own profile (phone / consent); they can't change it afterwards on the live site until `dev` is merged (`/profile` only exists on `dev`).
 
 ### Resume here
 
-1. **User:** run the "(User) Manual test" checklists in `ROADMAP.md` (Phases 2b–5b, edited-by, presidents/super admins, votes). Fix what breaks.
-2. **User:** commit on `dev`, then merge `dev` → `main` when happy (Pages still on older `main` until then).
-3. Optional: backfill `score: 0` on pre-vote posts so **Top** includes them.
-4. **Phase 6** — Java + emulator rules tests, mobile/accessibility pass, invite the class.
+1. **User:** raise classA's President rank, then continue the `ROADMAP.md` manual tests: Phase 2b (rest), "Decided + built 2026-10-19", then Phases 3–5b, presidents, votes, edited-by. Fix what breaks.
+2. **User:** commit on `dev`, then merge `dev` → `main` when happy (classmates need `/profile` live to manage their consent).
+3. Next build candidates: super admin name/phone edit + change log; email delivery decision.
+4. Optional: backfill `score: 0` on pre-vote posts so **Top** includes them.
+5. **Phase 6** — Java + emulator rules tests (cover invites + notifications), mobile/accessibility pass, invite the class.
 
 ### Caveats
 

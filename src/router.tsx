@@ -21,6 +21,7 @@ import PostEdit from '@/pages/posts/edit';
 import PostsIndex from '@/pages/posts/index';
 import PostNew from '@/pages/posts/new';
 import PostShow from '@/pages/posts/show';
+import Profile from '@/pages/profile';
 
 // Code-split route: the page downloads the first time it's opened.
 function lazyPage(load: () => Promise<{ default: ComponentType }>) {
@@ -42,7 +43,10 @@ export const router = createHashRouter([
             { path: '/signup', element: <Signup /> },
             {
                 element: <RequireAuth allowPending />,
-                children: [{ path: '/pending', element: <Pending /> }],
+                children: [
+                    { path: '/pending', element: <Pending /> },
+                    { path: '/profile', element: <Profile /> },
+                ],
             },
         ],
     },

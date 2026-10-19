@@ -169,10 +169,12 @@ classes/{classId}
   roles/{roleId}                 this class's roles (master table per class)
   members/{uid}                  pivot: class_members (class_id, user_id, role_id)
   joinRequests/{uid}             pending sign-ups asking to join this class
+  invites/{email}                existing accounts invited to this class (they accept)
   posts/{postId}                 FK class (path), userId
     comments/{commentId}         FK post (path), userId, parentId (self FK)
 users/{uid}                      people (one per Auth login)
-userContacts/{uid}               1:1 with users, private (SMS consent)
+  notifications/{id}             class changes (added, role changed, removed)
+userContacts/{uid}               1:1 with users, private (SMS + email consent)
 ```
 
 **Collections:**
@@ -192,13 +194,20 @@ userContacts/{uid}               1:1 with users, private (SMS consent)
   - Removing someone from a class deletes the pivot doc; their posts stay.
 - `classes/{classId}/joinRequests/{uid}`: `{ userId, phone, createdAt }`
   - Sign-up's profile step asks the student to **pick their class** (active classes). Anyone whose role in that class has `students.manage` approves (batch: create member with a role ranked below theirs, defaulting to the lowest, + delete request) or rejects (delete request). Pending users can also request from `/pending`.
+- `classes/{classId}/invites/{email}` (decided + built 2026-10-19): `{ email, roleId, roleName, invitedBy, createdAt }`
+  - The Students page "Invite student" form creates a new account when the email is unused; when Auth says the email already has an account (`auth/email-already-in-use`), it writes an invite instead. Officers can't list `users` or read `userContacts`, so they can't look up the uid or copy the phone — the **invitee accepts** from the board / `/pending` (batch: create their own member doc with the invited role + their own phone / SMS consent, delete the invite, clear any join request). `addedBy` = the inviter. Decline / cancel = delete.
+  - Doc ID = lowercase school email; `roleName` is a copy because the invitee can't read the class's roles yet. Rules: create needs `students.manage` + role ranked below yours + class not archived; read by `students.manage` or the invitee (token email); collection-group "my invites" on `email` (index override).
+- `users/{uid}/notifications/{id}` (decided + built 2026-10-19): `{ type: 'added' | 'role_changed' | 'removed', classId, roleName, actorId, read, createdAt }`
+  - Written by whoever makes the change, **in the same batch** (approve, add existing, invite new account, change role, remove, President of a new class). Rules (`notificationMatches`) check it matches the batch via `exists` / `existsAfter` / `getAfter` on the membership, and `roleName` equals the role after the change. Only the owner reads, marks read, or deletes. Bell with unread count in the board top bar; unread ones also on `/pending`.
+  - Email delivery is not built (no free server-side email). Later options: EmailJS (~200/month, browser key) or the officer's own mail app (`mailto:`).
 - `users/{uid}`: `{ firstName, lastName, email, createdBy | null, createdInClassId | null, createdAt, updatedAt, deletedAt }`
   - **`createdBy`**: `null` for self sign-up; otherwise the uid of whoever invited them (rules: must equal the creator's uid). **`createdInClassId`**: the class they were invited into; the rules use it to check the inviter has `students.manage` there and that the membership is created in the same batch (`existsAfter`).
   - **Pending** = no memberships (and not a super admin).
   - Deactivate/restore (`deletedAt`) is super admin only, since a person can be in several classes. Class managers remove people from *their* class instead.
   - Email must be `@student.ccc.edu` or `@ccc.edu` (copied from Auth; rules check it matches the token).
-- `userContacts/{uid}`: `{ phone, smsOptIn, smsOptInAt | null, updatedAt }`
-  - Source of truth for the phone + SMS consent; readable by the owner and super admins only. Classmates see the membership copy.
+- `userContacts/{uid}`: `{ phone, smsOptIn, smsOptInAt | null, emailOptIn?, emailOptInAt? | null, updatedAt }`
+  - Source of truth for the phone + SMS / email consent; readable by the owner and super admins only. Classmates see the membership copy. Consent can only be set by the student (super admins can't edit contact details; a super-admin edit of name + phone with a change log is planned).
+  - `emailOptIn` (2026-10-19): "Email me when my classes change"; optional in the rules so older docs / the older live site keep working. Consent timestamps are kept while consent stays on.
   - `phone` is stored in E.164 format (`+13125551234`). The opt-in flag and its timestamp are kept now so SMS later needs no migration (US texting requires consent).
 
 **Class permissions** (code constants in `src/lib/permissions.ts`, shown as checkboxes in each class's role editor; all apply only inside that class):
@@ -298,7 +307,7 @@ Two levels (decided 2026-10-08). Class managers see a **class switcher** listing
 - `/login`, `/signup` (the stepper; also hosts the verify-email and profile steps) and `/forgot-password` use `auth-layout.tsx` and are open to anyone.
 - `/pending` is shown to signed-in users with no class yet ("waiting for an admin to add you to a class").
 - Board routes mirror the Firestore paths: `/` opens your last-used (or newest) class; `/classes/:classId` is the feed, `/classes/:classId/posts/:postId` the post page, `/classes/:classId/posts/new` needs `posts.create`, and `.../posts/:postId/edit` needs authorship or `posts.edit_any`. All of them require membership in that class (or super admin).
-- `/profile` lets users change their name and contact number (with SMS opt-in).
+- `/profile` lets users change their name and contact number (with SMS and email opt-in). Built 2026-10-19 (auth layout, open to pending users too; reuses the sign-up profile form).
 - Each page handles loading, empty and error states.
 - An `AuthProvider` context exposes `user`, `profile` and `can(permission)`.
 

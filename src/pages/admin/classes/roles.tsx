@@ -1,4 +1,4 @@
-import { Plus } from 'lucide-react';
+import { Info, Plus } from 'lucide-react';
 import { useState } from 'react';
 import { useParams } from 'react-router';
 
@@ -17,6 +17,11 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table';
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { useAuth } from '@/hooks/use-auth';
 import { useCollection } from '@/hooks/use-collection';
 import { deleteRole } from '@/lib/class-roles';
@@ -77,7 +82,31 @@ export default function ClassRoles() {
                         <TableHeader>
                             <TableRow>
                                 <TableHead>Role</TableHead>
-                                <TableHead>Rank</TableHead>
+                                <TableHead>
+                                    <div className="flex items-center gap-1">
+                                        Rank
+                                        <Tooltip>
+                                            <TooltipTrigger asChild>
+                                                <button
+                                                    type="button"
+                                                    className="rounded-sm text-muted-foreground hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                                                    aria-label="What rank means"
+                                                >
+                                                    <Info
+                                                        className="size-3.5"
+                                                        aria-hidden
+                                                    />
+                                                </button>
+                                            </TooltipTrigger>
+                                            <TooltipContent className="max-w-64">
+                                                The higher the rank, the higher
+                                                the role in the hierarchy.
+                                                People can only manage roles and
+                                                members ranked below their own.
+                                            </TooltipContent>
+                                        </Tooltip>
+                                    </div>
+                                </TableHead>
                                 <TableHead>Permissions</TableHead>
                                 <TableHead>Members</TableHead>
                                 <TableHead className="text-right">

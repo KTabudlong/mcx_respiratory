@@ -32,6 +32,7 @@ function JoinRequestRow({
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState('');
     const selectId = `join-role-${request.id}`;
+    const role = roles.find((item) => item.id === roleId);
 
     async function run(action: () => Promise<void>) {
         setBusy(true);
@@ -76,10 +77,11 @@ function JoinRequestRow({
                     </NativeSelect>
                     <Button
                         size="sm"
-                        disabled={busy || !roleId}
+                        disabled={busy || !role}
                         onClick={() =>
+                            role &&
                             run(() =>
-                                approveJoinRequest(request, roleId, approvedBy),
+                                approveJoinRequest(request, role, approvedBy),
                             )
                         }
                     >

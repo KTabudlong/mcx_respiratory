@@ -10,28 +10,32 @@ import { useEffect, useState } from 'react';
 
 import { db } from '@/lib/firebase';
 import { docData } from '@/lib/firestore-data';
-import type { ClassMember, JoinRequest, Post } from '@/types';
+import type { ClassInvite, ClassMember, JoinRequest, Post } from '@/types';
 
 type Snapshot<T> = { key: string; data: T[]; error: Error | null };
 
 const ALL = '*';
 
 // Collection-group query across every class (e.g. all classes/*/members).
-// `userId` is a uid (only that user's docs), ALL, or null to skip. The
-// class ID comes from each document's path.
-function useGroupQuery<T>(group: string, userId: string | null) {
-    const key = userId ? `${group}:${userId}` : null;
+// `value` is matched against `field` (only that user's docs), ALL, or null
+// to skip. The class ID comes from each document's path.
+function useGroupQuery<T>(
+    group: string,
+    value: string | null,
+    field = 'userId',
+) {
+    const key = value ? `${group}:${field}:${value}` : null;
     const [snapshot, setSnapshot] = useState<Snapshot<T> | null>(null);
 
     useEffect(() => {
-        if (!key || !userId) {
+        if (!key || !value) {
             return;
         }
 
         const docs = collectionGroup(db, group);
 
         return onSnapshot(
-            userId === ALL ? docs : query(docs, where('userId', '==', userId)),
+            value === ALL ? docs : query(docs, where(field, '==', value)),
             (snap) =>
                 setSnapshot({
                     key,
@@ -40,7 +44,7 @@ function useGroupQuery<T>(group: string, userId: string | null) {
                 }),
             (error) => setSnapshot({ key, data: [], error }),
         );
-    }, [key, group, userId]);
+    }, [key, group, value, field]);
 
     if (!key) {
         return { data: [] as T[], loading: false, error: null };
@@ -69,6 +73,15 @@ export function useAllMemberships(enabled: boolean) {
 // One user's pending join requests (own, or anyone's for super admins).
 export function useJoinRequestsOf(uid: string | null) {
     return useGroupQuery<JoinRequest>('joinRequests', uid);
+}
+
+// Class invites sent to this school email (the signed-in user's own).
+export function useInvitesFor(email: string | null) {
+    return useGroupQuery<ClassInvite>(
+        'invites',
+        email ? email.toLowerCase() : null,
+        'email',
+    );
 }
 
 // A user's newest posts across every class, deleted ones included (super

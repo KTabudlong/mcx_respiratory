@@ -9,12 +9,12 @@ import {
     deleteDoc,
     doc,
     serverTimestamp,
-    updateDoc,
     writeBatch,
 } from 'firebase/firestore';
 
 import { db, firebaseConfig } from '@/lib/firebase';
-import type { JoinRequest } from '@/types';
+import { addNotification } from '@/lib/notifications';
+import type { ClassRole, JoinRequest } from '@/types';
 
 function memberRef(classId: string, uid: string) {
     return doc(db, 'classes', classId, 'members', uid);
@@ -25,17 +25,18 @@ function joinRequestRef(classId: string, uid: string) {
 }
 
 // Approve: create the membership (copying the phone and SMS consent from the
-// request so they're there right away) and delete the request, in one batch.
+// request so they're there right away), delete the request and notify them,
+// in one batch.
 export async function approveJoinRequest(
     request: JoinRequest,
-    roleId: string,
+    role: ClassRole,
     approvedBy: string,
 ) {
     const batch = writeBatch(db);
 
     batch.set(memberRef(request.classId, request.userId), {
         userId: request.userId,
-        roleId,
+        roleId: role.id,
         phone: request.phone,
         smsOptIn: request.smsOptIn ?? false,
         addedBy: approvedBy,
@@ -43,6 +44,11 @@ export async function approveJoinRequest(
         updatedAt: serverTimestamp(),
     });
     batch.delete(joinRequestRef(request.classId, request.userId));
+    addNotification(batch, request.userId, approvedBy, {
+        type: 'added',
+        classId: request.classId,
+        roleName: role.name,
+    });
 
     await batch.commit();
 }
@@ -54,10 +60,10 @@ export async function addExistingMember(
     classId: string,
     member: {
         userId: string;
-        roleId: string;
         phone: string;
         smsOptIn: boolean;
     },
+    role: ClassRole,
     addedBy: string,
     hasJoinRequest: boolean,
 ) {
@@ -65,6 +71,7 @@ export async function addExistingMember(
 
     batch.set(memberRef(classId, member.userId), {
         ...member,
+        roleId: role.id,
         addedBy,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
@@ -74,6 +81,14 @@ export async function addExistingMember(
         batch.delete(joinRequestRef(classId, member.userId));
     }
 
+    if (member.userId !== addedBy) {
+        addNotification(batch, member.userId, addedBy, {
+            type: 'added',
+            classId,
+            roleName: role.name,
+        });
+    }
+
     await batch.commit();
 }
 
@@ -81,16 +96,43 @@ export function rejectJoinRequest(request: JoinRequest) {
     return deleteDoc(joinRequestRef(request.classId, request.userId));
 }
 
-export function changeMemberRole(classId: string, uid: string, roleId: string) {
-    return updateDoc(memberRef(classId, uid), {
-        roleId,
+export async function changeMemberRole(
+    classId: string,
+    uid: string,
+    role: ClassRole,
+    changedBy: string,
+) {
+    const batch = writeBatch(db);
+
+    batch.update(memberRef(classId, uid), {
+        roleId: role.id,
         updatedAt: serverTimestamp(),
     });
+    addNotification(batch, uid, changedBy, {
+        type: 'role_changed',
+        classId,
+        roleName: role.name,
+    });
+
+    await batch.commit();
 }
 
 // Removes them from this class only; their account and posts stay.
-export function removeMember(classId: string, uid: string) {
-    return deleteDoc(memberRef(classId, uid));
+export async function removeMember(
+    classId: string,
+    uid: string,
+    removedBy: string,
+) {
+    const batch = writeBatch(db);
+
+    batch.delete(memberRef(classId, uid));
+    addNotification(batch, uid, removedBy, {
+        type: 'removed',
+        classId,
+        roleName: '',
+    });
+
+    await batch.commit();
 }
 
 function randomPassword() {
@@ -129,7 +171,7 @@ export type InviteInput = {
     email: string;
     firstName: string;
     lastName: string;
-    roleId: string;
+    role: ClassRole;
 };
 
 // New account invited into a class: the login, the profile (with the
@@ -156,12 +198,17 @@ export async function inviteToClass(
     });
     batch.set(memberRef(classId, uid), {
         userId: uid,
-        roleId: input.roleId,
+        roleId: input.role.id,
         phone: '',
         smsOptIn: false,
         addedBy: invitedBy,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
+    });
+    addNotification(batch, uid, invitedBy, {
+        type: 'added',
+        classId,
+        roleName: input.role.name,
     });
 
     await batch.commit();

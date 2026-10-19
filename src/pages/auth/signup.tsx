@@ -83,6 +83,7 @@ export default function Signup() {
                         uid={user.uid}
                         email={user.email ?? ''}
                         profile={profile}
+                        contact={contact}
                         memberships={memberships}
                     />
                 )}

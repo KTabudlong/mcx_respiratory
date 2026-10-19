@@ -7,14 +7,28 @@ import {
 } from 'firebase/firestore';
 
 import { db } from '@/lib/firebase';
-import type { ClassMember } from '@/types';
+import type { ClassMember, UserContact } from '@/types';
 
 export type ProfileInput = {
     firstName: string;
     lastName: string;
     phone: string; // E.164 or ''
     smsOptIn: boolean;
+    emailOptIn: boolean;
 };
+
+// Keeps the original consent time while consent stays on.
+function optInAt(
+    on: boolean,
+    wasOn: boolean | undefined,
+    previous: UserContact['smsOptInAt'] | undefined,
+) {
+    if (!on) {
+        return null;
+    }
+
+    return wasOn && previous ? previous : serverTimestamp();
+}
 
 // One batch: the user's profile (created on self sign-up, completed for
 // invited accounts), the private contact doc, an optional join request for
@@ -24,6 +38,7 @@ export async function saveOwnProfile({
     uid,
     email,
     profileExists,
+    contact,
     memberships,
     joinClassId,
     input,
@@ -31,6 +46,7 @@ export async function saveOwnProfile({
     uid: string;
     email: string;
     profileExists: boolean;
+    contact: UserContact | null;
     memberships: ClassMember[];
     joinClassId: string | null;
     input: ProfileInput;
@@ -59,7 +75,17 @@ export async function saveOwnProfile({
     batch.set(doc(db, 'userContacts', uid), {
         phone: input.phone,
         smsOptIn: input.smsOptIn,
-        smsOptInAt: input.smsOptIn ? serverTimestamp() : null,
+        smsOptInAt: optInAt(
+            input.smsOptIn,
+            contact?.smsOptIn,
+            contact?.smsOptInAt,
+        ),
+        emailOptIn: input.emailOptIn,
+        emailOptInAt: optInAt(
+            input.emailOptIn,
+            contact?.emailOptIn,
+            contact?.emailOptInAt,
+        ),
         updatedAt: serverTimestamp(),
     });
 

@@ -159,12 +159,22 @@ export function MembersTable({
                                                 id={selectId}
                                                 className="w-40"
                                                 value={member.roleId}
-                                                onChange={(event) =>
-                                                    onChangeRole(
-                                                        row,
-                                                        event.target.value,
-                                                    )
-                                                }
+                                                onChange={(event) => {
+                                                    const nextRoleId =
+                                                        event.target.value;
+                                                    event.currentTarget.value =
+                                                        member.roleId;
+
+                                                    if (
+                                                        nextRoleId !==
+                                                        member.roleId
+                                                    ) {
+                                                        onChangeRole(
+                                                            row,
+                                                            nextRoleId,
+                                                        );
+                                                    }
+                                                }}
                                             >
                                                 {!role && (
                                                     <option

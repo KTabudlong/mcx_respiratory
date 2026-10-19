@@ -1,8 +1,16 @@
-import { LayoutDashboard, LogOut, Plus, School, UserRound } from 'lucide-react';
+import {
+    LayoutDashboard,
+    LogOut,
+    Plus,
+    School,
+    UserPen,
+    UserRound,
+} from 'lucide-react';
 import { useState } from 'react';
 import { Link, useMatch, useNavigate } from 'react-router';
 
 import { ClassRequestDialog } from '@/components/board/class-request-dialog';
+import { NotificationsMenu } from '@/components/board/notifications-menu';
 import { NativeSelect } from '@/components/common/native-select';
 import { Button } from '@/components/ui/button';
 import {
@@ -78,6 +86,12 @@ function UserMenu() {
                         </span>
                     </DropdownMenuLabel>
                     <DropdownMenuSeparator />
+                    <DropdownMenuItem asChild>
+                        <Link to="/profile">
+                            <UserPen aria-hidden />
+                            Profile
+                        </Link>
+                    </DropdownMenuItem>
                     {hasAdminAccess && (
                         <DropdownMenuItem asChild>
                             <Link to="/admin">
@@ -133,6 +147,7 @@ export function BoardTopBar() {
                             </Link>
                         </Button>
                     )}
+                    <NotificationsMenu />
                     <UserMenu />
                 </div>
             </div>

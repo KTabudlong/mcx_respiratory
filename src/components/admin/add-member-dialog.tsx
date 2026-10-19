@@ -53,12 +53,13 @@ export function AddMemberDialog({
     async function handleSubmit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
 
+        const role = roles.find((item) => item.id === roleId);
         const message =
-            (userId ? '' : 'Pick a person.') || (roleId ? '' : 'Pick a role.');
+            (userId ? '' : 'Pick a person.') || (role ? '' : 'Pick a role.');
 
         setError(message);
 
-        if (message) {
+        if (message || !role) {
             return;
         }
 
@@ -71,10 +72,10 @@ export function AddMemberDialog({
                 classId,
                 {
                     userId,
-                    roleId,
                     phone: contact?.phone ?? '',
                     smsOptIn: contact?.smsOptIn ?? false,
                 },
+                role,
                 currentUserId,
                 joinRequestIds.has(userId),
             );

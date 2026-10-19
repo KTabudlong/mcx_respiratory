@@ -49,6 +49,11 @@ export function UserProfileCard({
                             ? `Opted in${contact.smsOptInAt ? ` ${formatDateTime(contact.smsOptInAt.toDate())}` : ''}`
                             : 'Not opted in'}
                     </Field>
+                    <Field label="Email updates">
+                        {contact?.emailOptIn
+                            ? `Opted in${contact.emailOptInAt ? ` ${formatDateTime(contact.emailOptInAt.toDate())}` : ''}`
+                            : 'Not opted in'}
+                    </Field>
                     <Field label="Joined">
                         {formatDateTime(user.createdAt.toDate())}
                     </Field>

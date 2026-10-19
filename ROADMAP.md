@@ -26,9 +26,9 @@
 
 ## Short-term checklist
 
-**Planning last reviewed:** 2026-10-15
+**Planning last reviewed:** 2026-10-19
 
-**Current milestone:** Phases 2b–5b + presidents + votes built; rules/indexes deployed. Next: user runs ROADMAP manual-test checklists, then merge `dev` → `main` / Phase 6.
+**Current milestone:** Manual testing in progress (Phase 2b partly done 2026-10-19). Added 2026-10-19: role-change confirm, rank tooltip, invites for existing accounts, notifications, email consent, `/profile` — rules/index deployed. Next: finish the manual-test checklists, then merge `dev` → `main` / Phase 6.
 
 ### Planning — data model + UI ✅ 2026-10-08
 
@@ -79,9 +79,10 @@
 - [x] Admin shell: class switcher (classes with `admin.access`), super admin sections
 - [x] Class pages: Students (roster with phones, join requests, invite, change role, remove), Roles (rank, color, permission checkboxes)
 - [x] Super admin pages: Classes (create with the default Student role), Users (deactivate/restore, invited by)
-- [ ] (User) Manual test (run `npm run dev`; use incognito / a second browser profile for other accounts; needs extra real `@student.ccc.edu` / `@ccc.edu` addresses):
-  - [ ] Super admin: create a test class → it starts with only a Student role
-  - [ ] Roles page: add President (high rank; `admin.access`, `students.view`, `students.manage`) and Treasurer (lower rank; `admin.access`, `students.view` only)
+- [ ] (User) Manual test (run `npm run dev`; use incognito / a second browser profile for other accounts; needs extra real `@student.ccc.edu` / `@ccc.edu` addresses). Test setup 2026-10-19: classA (testA = President), classB (empty), testB with no class:
+  - [x] Super admin: create a test class → it starts with only a Student role
+  - [ ] Roles page: add President (high rank; `admin.access`, `students.view`, `students.manage`) and Treasurer (lower rank; `admin.access`, `students.view` only). **2026-10-19: President was created at rank 1 (same as Student), so testA couldn't invite / change roles — raise President's rank (e.g. 1000) first**
+  - [x] President sees the class admin pages (2026-10-19, testA)
   - [ ] Students page: invite a second address as President → set password from the email → log in
   - [ ] Sign up a third address and pick the class → `/pending` shows the request; cancel and re-request work
   - [ ] As President: approve the request → person appears in the roster with their phone (if given)
@@ -165,6 +166,27 @@
     - [ ] User page › Make super admin → badge appears, they get the admin panel; Remove super admin → gone; the button doesn't show on your own page or on deactivated accounts
 - [ ] (User) Manual test: edit someone's post with `posts.edit_any` → "edited by" shows your name; pin / delete don't change it
 
+### Decided + built 2026-10-19 (during manual testing)
+
+- [x] Students page: changing a role from the dropdown asks for confirmation first (Cancel keeps the old role)
+- [x] Roles page: info tooltip on the Rank column ("higher rank = higher in the hierarchy")
+- [x] **Invites for existing accounts:** "Invite student" creates a new account if the email is unused; otherwise writes `classes/{c}/invites/{email}` and the person accepts / declines from the board or `/pending` (their own phone + SMS consent copy over). "Invited" card on Students with Cancel. Officers still can't browse users
+- [x] **Notifications:** `users/{uid}/notifications`, written in the same batch as add / approve / invite new account / role change / remove / President of a new class; rules check each matches the change. Bell + unread count on the board; unread on `/pending` with Dismiss
+- [x] **Email consent:** "Email me when my classes change" checkbox (`userContacts.emailOptIn`, student-only, optional in rules); shown on the super admin user page. Nothing sends email yet
+- [x] **`/profile` page** (board account menu + `/pending`): name, phone, SMS + email consent; keeps original consent timestamps
+- [x] Deploy rules + `invites.email` collection-group index, 2026-10-19
+- [ ] (User) Manual test — 2026-10-19 additions:
+    - [ ] Change a role from the Students dropdown → confirm dialog; Cancel keeps the old role
+    - [ ] Roles page: hover the Rank info icon → tooltip
+    - [ ] As President (rank raised): invite an existing account's email → "Invite sent", listed under Invited; Cancel invite removes it
+    - [ ] That account logs in → "You're invited to join … as …" on the board or `/pending`; Accept → on the roster with their phone; Decline → invite gone
+    - [ ] Invite a brand-new email → account created in the class as before; on first login their bell shows "added you to …"
+    - [ ] Approve a join request / change a role / remove → the student's bell shows it (removed → `/pending` shows it with Dismiss); closing the bell clears the count
+    - [ ] Add a class with a President (or approve a class request) → the President gets "added you to … as President"
+    - [ ] Profile: change phone + SMS + email consent → saved; roster phone updates; super admin user page shows "Email updates: Opted in"
+- [ ] Super admin edit of a user's name + phone with a change log (who, when, field, old → new); SMS / email consent stays student-only (agreed 2026-10-19, not built)
+- [ ] Decide email delivery for class-change notifications (EmailJS free tier vs officer's own mail app); only email people with `emailOptIn`
+
 ### Phase 6 — Polish + launch (days 23–25)
 
 - [ ] Install Java 21 (winget); emulator + automated rules tests
@@ -194,7 +216,7 @@ User decisions: gallery (not inline) photos, max 3 per post; quotes + divider, n
 ## Blocked / waiting
 
 - Nothing blocking. Unused GitHub environment variables cleaned up (user, 2026-10-15).
-- Merge `dev` → `main` waits until the user finishes the Phase 2b–5b / presidents / votes manual tests.
+- Merge `dev` → `main` waits until the user finishes the Phase 2b–5b / presidents / votes / 2026-10-19 manual tests. Production rules are already ahead of `main` (additive / optional fields, so the older live site still works).
 
 ---
 
@@ -206,3 +228,4 @@ User decisions: gallery (not inline) photos, max 3 per post; quotes + divider, n
 - **2026-10-08** — Phase 1 done and tested. Phase 2 built: full rules deployed, roles seeded, first admin set, lazy-loaded admin panel with classes + users tables. Student role can create posts. Admins land on `/admin` after login; "Open board" opens `/` in a new tab (URLs stay hash-based).
 - **2026-10-08** — Class is the anchor: membership pivot (`classes/{classId}/members/{uid}`), roles per class plus app-wide roles, posts/comments nested under classes.
 - **2026-10-08** — Designed (not built): super admin → class → ranked class roles; class officers get their own admin panel; join requests at sign-up; `createdBy`/`addedBy` audit fields; classmates see phones. Roles editor moves from Phase 5 into Phase 2b.
+- **2026-10-19** — Manual testing started. Built + deployed: role-change confirm, rank tooltip, invites for existing accounts (accept / decline), in-app notifications for class changes, email-update consent, `/profile` page. Agreed: super admin can edit name + phone with a change log (not built); consent stays student-only.

@@ -9,6 +9,7 @@ import { JoinRequestsList } from '@/components/admin/join-requests-list';
 import type { MemberRow } from '@/components/admin/members-table';
 import { MembersTable } from '@/components/admin/members-table';
 import { SelectedMembersBar } from '@/components/admin/selected-members-bar';
+import { SentInvitesList } from '@/components/admin/sent-invites-list';
 import { TextSelectedDialog } from '@/components/admin/text-selected-dialog';
 import { ConfirmDialog } from '@/components/common/confirm-dialog';
 import { FormMessage } from '@/components/common/form-message';
@@ -28,12 +29,19 @@ import {
     outranks,
 } from '@/lib/permissions';
 import { compareByName, matchesName } from '@/lib/user-filters';
-import type { ClassMember, ClassRole, JoinRequest, UserProfile } from '@/types';
+import type {
+    ClassInvite,
+    ClassMember,
+    ClassRole,
+    JoinRequest,
+    UserProfile,
+} from '@/types';
 
 type DialogState =
     | { type: 'invite' }
     | { type: 'add-existing' }
     | { type: 'remove'; row: MemberRow }
+    | { type: 'change-role'; row: MemberRow; role: ClassRole }
     | { type: 'text' }
     | null;
 
@@ -52,9 +60,13 @@ export default function ClassStudents() {
     const requests = useCollection<JoinRequest>(
         canManage ? `classes/${classId}/joinRequests` : null,
     );
+    const invites = useCollection<ClassInvite>(
+        canManage ? `classes/${classId}/invites` : null,
+    );
     const userIds = new Set([
         ...members.data.flatMap((member) => [member.userId, member.addedBy]),
         ...requests.data.map((request) => request.userId),
+        ...invites.data.map((invite) => invite.invitedBy),
     ]);
     const users = useDocuments<UserProfile>(
         [...userIds].filter(Boolean).map((uid) => `users/${uid}`),
@@ -69,9 +81,15 @@ export default function ClassStudents() {
         members.loading ||
         roles.loading ||
         requests.loading ||
+        invites.loading ||
         (users.loading && users.data.length === 0);
     const error =
-        members.error ?? roles.error ?? requests.error ?? users.error ?? null;
+        members.error ??
+        roles.error ??
+        requests.error ??
+        invites.error ??
+        users.error ??
+        null;
 
     const userById = new Map(users.data.map((user) => [user.id, user]));
     const roleById = new Map(roles.data.map((role) => [role.id, role]));
@@ -128,14 +146,15 @@ export default function ClassStudents() {
         });
     }
 
-    async function handleChangeRole(row: MemberRow, roleId: string) {
-        setActionError('');
+    function handleChangeRole(row: MemberRow, roleId: string) {
+        const role = roleById.get(roleId);
 
-        try {
-            await changeMemberRole(classId, row.member.userId, roleId);
-        } catch (err) {
-            setActionError(getErrorMessage(err));
+        if (!role || roleId === row.member.roleId) {
+            return;
         }
+
+        setActionError('');
+        setDialog({ type: 'change-role', row, role });
     }
 
     return (
@@ -188,6 +207,13 @@ export default function ClassStudents() {
                         />
                     )}
 
+                    {canManage && (
+                        <SentInvitesList
+                            invites={invites.data}
+                            userById={userById}
+                        />
+                    )}
+
                     <SearchInput
                         value={search}
                         onChange={setSearch}
@@ -227,6 +253,19 @@ export default function ClassStudents() {
                     roles={assignable}
                     defaultRoleId={defaultRoleId}
                     invitedBy={me.uid}
+                    memberEmails={
+                        new Set(
+                            members.data.map(
+                                (member) =>
+                                    userById
+                                        .get(member.userId)
+                                        ?.email.toLowerCase() ?? '',
+                            ),
+                        )
+                    }
+                    invitedEmails={
+                        new Set(invites.data.map((invite) => invite.id))
+                    }
                     onClose={() => setDialog(null)}
                 />
             )}
@@ -252,7 +291,31 @@ export default function ClassStudents() {
                     confirmLabel="Remove"
                     destructive
                     onConfirm={() =>
-                        removeMember(classId, dialog.row.member.userId)
+                        removeMember(
+                            classId,
+                            dialog.row.member.userId,
+                            me?.uid ?? '',
+                        )
+                    }
+                    onClose={() => setDialog(null)}
+                />
+            )}
+            {dialog?.type === 'change-role' && (
+                <ConfirmDialog
+                    title={`Change ${dialog.row.user?.firstName ?? 'this person'}'s role to ${dialog.role.name}?`}
+                    description={
+                        dialog.row.role
+                            ? `${dialog.row.user?.firstName ?? 'This person'} is ${dialog.row.role.name} now. Confirming gives them the ${dialog.role.name} permissions in this class.`
+                            : `${dialog.row.user?.firstName ?? 'This person'} has no role right now. Confirming gives them the ${dialog.role.name} permissions in this class.`
+                    }
+                    confirmLabel="Change role"
+                    onConfirm={() =>
+                        changeMemberRole(
+                            classId,
+                            dialog.row.member.userId,
+                            dialog.role,
+                            me?.uid ?? '',
+                        )
                     }
                     onClose={() => setDialog(null)}
                 />

@@ -53,6 +53,19 @@ export type JoinRequest = {
     createdAt: Timestamp;
 };
 
+// classes/{classId}/invites/{email} — an existing account invited to the
+// class; they accept or decline. `id` is the lowercase school email.
+// roleName is a copy (the invitee can't read the class's roles yet).
+export type ClassInvite = {
+    id: string;
+    classId: string;
+    email: string;
+    roleId: string;
+    roleName: string;
+    invitedBy: string;
+    createdAt: Timestamp;
+};
+
 // classRequests/{uid} — someone asking the super admin to start a class
 // (one open request per person). Approving makes them its President.
 export type ClassRequest = {
@@ -151,12 +164,30 @@ export type Vote = {
     value: VoteValue;
 };
 
-// userContacts/{uid} — private source of truth for the phone + SMS consent:
-// only the owner and super admins can read it.
+// userContacts/{uid} — private source of truth for the phone + SMS / email
+// consent: only the owner and super admins can read it. Email consent is
+// missing on docs saved before it existed (treat as false).
 export type UserContact = {
     id: string;
     phone: string;
     smsOptIn: boolean;
     smsOptInAt: Timestamp | null;
+    emailOptIn?: boolean;
+    emailOptInAt?: Timestamp | null;
     updatedAt: Timestamp;
+};
+
+export type NotificationType = 'added' | 'role_changed' | 'removed';
+
+// users/{uid}/notifications/{id} — a change to one of their classes, written
+// by whoever made it in the same batch. roleName is the role after the
+// change ('' when removed).
+export type AppNotification = {
+    id: string;
+    type: NotificationType;
+    classId: string;
+    roleName: string;
+    actorId: string;
+    read: boolean;
+    createdAt: Timestamp;
 };
