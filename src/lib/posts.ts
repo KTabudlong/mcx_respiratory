@@ -10,8 +10,8 @@ import type { WriteBatch } from 'firebase/firestore';
 
 import { db } from '@/lib/firebase';
 import type { PreparedImage } from '@/lib/post-images';
-import { isBlankHtml } from '@/lib/rich-text';
-import type { PostLink } from '@/types';
+import { isBlankHtml, postBodyText } from '@/lib/rich-text';
+import type { Post, PostChange, PostLink } from '@/types';
 
 // Keep in sync with hasValidContent() in firestore.rules. The body is
 // editor HTML, so the limit counts tags too.
@@ -27,6 +27,17 @@ export type PostInput = {
     links: PostLink[];
     pinned: boolean;
 };
+
+// Feed search: `query` (already lowercase) in the title or the text.
+export function postMatches(
+    post: Pick<Post, 'title' | 'body' | 'format'>,
+    query: string,
+) {
+    return (
+        post.title.toLowerCase().includes(query) ||
+        postBodyText(post).toLowerCase().includes(query)
+    );
+}
 
 // Only http(s) links are stored or rendered, so a `javascript:` URL can never
 // end up in an href. Adds https:// when the scheme is missing.
@@ -194,6 +205,37 @@ export type ImageChanges = {
 // `pinned` is only sent when it changed, since the rules require posts.pin
 // for that. Removed photos are deleted outright (they're not posts).
 // `userId` is the editor (author or posts.edit_any), shown as "edited by".
+// Which parts an edit changes (for the history). `before` is the saved post;
+// its body may be older plain text, so compare as editor HTML.
+export function postChanges(
+    before: Pick<Post, 'title' | 'links' | 'imageIds'> & { bodyHtml: string },
+    after: PostInput,
+    imageIds: string[],
+) {
+    const changes: PostChange[] = [];
+
+    if (after.title.trim() !== before.title) {
+        changes.push('title');
+    }
+
+    if (after.body !== before.bodyHtml.trim()) {
+        changes.push('body');
+    }
+
+    if (JSON.stringify(after.links) !== JSON.stringify(before.links)) {
+        changes.push('links');
+    }
+
+    if (imageIds.join('|') !== (before.imageIds ?? []).join('|')) {
+        changes.push('photos');
+    }
+
+    return changes;
+}
+
+// Content edit + its history entry (edits/{n}) in one batch; the rules
+// refuse an edit without the matching entry. `editCount` = the saved
+// post's count (0 when never logged).
 export async function updatePost(
     classId: string,
     postId: string,
@@ -201,9 +243,11 @@ export async function updatePost(
     post: PostInput,
     pinnedChanged: boolean,
     images: ImageChanges,
+    history: { editCount: number; changes: PostChange[] },
 ) {
     const { pinned, ...content } = post;
     const batch = writeBatch(db);
+    const editCount = history.editCount + 1;
 
     batch.update(postRef(classId, postId), {
         ...content,
@@ -212,7 +256,13 @@ export async function updatePost(
         ...(pinnedChanged ? { pinned } : {}),
         editedBy: userId,
         editedAt: serverTimestamp(),
+        editCount,
         updatedAt: serverTimestamp(),
+    });
+    batch.set(doc(postRef(classId, postId), 'edits', String(editCount)), {
+        editorId: userId,
+        editedAt: serverTimestamp(),
+        changes: history.changes,
     });
     addImages(batch, classId, postId, userId, images.added);
 

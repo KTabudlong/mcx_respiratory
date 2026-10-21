@@ -1,7 +1,9 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { RouterProvider } from 'react-router/dom';
+import { Toaster } from 'sonner';
 
+import { EnvironmentBadge } from '@/components/common/environment-badge';
 import { AuthProvider } from '@/context/auth-provider';
 import { router } from '@/router';
 
@@ -12,5 +14,7 @@ createRoot(document.getElementById('root')!).render(
         <AuthProvider>
             <RouterProvider router={router} />
         </AuthProvider>
+        <EnvironmentBadge />
+        <Toaster position="top-center" richColors closeButton />
     </StrictMode>,
 );

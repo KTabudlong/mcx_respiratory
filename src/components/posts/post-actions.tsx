@@ -1,6 +1,7 @@
 import { MoreHorizontal, Pencil, Pin, PinOff, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { Link } from 'react-router';
+import { toast } from 'sonner';
 
 import { ConfirmDialog } from '@/components/common/confirm-dialog';
 import { Button } from '@/components/ui/button';
@@ -40,6 +41,9 @@ export function PostActions({
     async function togglePin() {
         try {
             await setPostPinned(post.classId, post.id, !post.pinned);
+            toast.success(
+                post.pinned ? 'Post unpinned.' : 'Post pinned to top.',
+            );
         } catch (err) {
             onError(getErrorMessage(err));
         }
@@ -95,6 +99,7 @@ export function PostActions({
                     title="Delete this post?"
                     description="It disappears from the board for everyone. Moderators can still restore it."
                     confirmLabel="Delete post"
+                    successMessage="Post deleted."
                     destructive
                     onConfirm={async () => {
                         await softDeletePost(post.classId, post.id);

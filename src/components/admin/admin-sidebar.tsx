@@ -25,7 +25,7 @@ import {
 } from '@/components/ui/sidebar';
 import { useAuth } from '@/hooks/use-auth';
 import { useCollection } from '@/hooks/use-collection';
-import { logOut } from '@/lib/auth';
+import { useLogOut } from '@/hooks/use-log-out';
 import type { Permission } from '@/lib/permissions';
 import type { ClassGroup } from '@/types';
 
@@ -92,6 +92,7 @@ function NavList({ items }: { items: NavItem[] }) {
 
 export function AdminSidebar() {
     const { profile, isSuperAdmin, adminClassIds, canIn } = useAuth();
+    const logOut = useLogOut();
     const { setOpenMobile } = useSidebar();
     const classes = useCollection<ClassGroup>('classes');
     const classMatch = useMatch('/admin/classes/:classId/*');
@@ -154,7 +155,7 @@ export function AdminSidebar() {
                         </p>
                     </SidebarMenuItem>
                     <SidebarMenuItem>
-                        <SidebarMenuButton onClick={() => logOut()}>
+                        <SidebarMenuButton onClick={() => void logOut()}>
                             <LogOut aria-hidden />
                             <span>Log out</span>
                         </SidebarMenuButton>

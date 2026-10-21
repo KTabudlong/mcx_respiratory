@@ -1,5 +1,6 @@
 import type { FormEvent } from 'react';
 import { useState } from 'react';
+import { toast } from 'sonner';
 
 import { FormMessage } from '@/components/common/form-message';
 import { NativeSelect } from '@/components/common/native-select';
@@ -56,7 +57,6 @@ export function InviteMemberDialog({
     const [roleId, setRoleId] = useState(defaultRoleId);
     const [error, setError] = useState('');
     const [submitting, setSubmitting] = useState(false);
-    const [invitedExisting, setInvitedExisting] = useState(false);
 
     const role = roles.find((item) => item.id === roleId);
     const normalizedEmail = email.trim().toLowerCase();
@@ -90,7 +90,12 @@ export function InviteMemberDialog({
                 { firstName, lastName, email, role },
                 invitedBy,
             );
+            toast.success(
+                `${firstName.trim()} added as ${role.name}. They'll get an email to set their password.`,
+            );
             onClose();
+
+            return;
         } catch (err) {
             if (!isEmailInUse(err)) {
                 setError(getErrorMessage(err));
@@ -98,14 +103,16 @@ export function InviteMemberDialog({
 
                 return;
             }
+        }
 
-            try {
-                await createInvite(classId, normalizedEmail, role, invitedBy);
-                setInvitedExisting(true);
-            } catch (inviteErr) {
-                setError(getErrorMessage(inviteErr));
-            }
-
+        try {
+            await createInvite(classId, normalizedEmail, role, invitedBy);
+            toast.success(
+                `${normalizedEmail} already has an account. They'll be asked to join as ${role.name} next time they log in.`,
+            );
+            onClose();
+        } catch (err) {
+            setError(getErrorMessage(err));
             setSubmitting(false);
         }
     }
@@ -113,114 +120,82 @@ export function InviteMemberDialog({
     return (
         <Dialog open onOpenChange={(open) => !open && !submitting && onClose()}>
             <DialogContent>
-                {invitedExisting ? (
-                    <>
-                        <DialogHeader>
-                            <DialogTitle>Invite sent</DialogTitle>
-                            <DialogDescription>
-                                {normalizedEmail} already has an account. Next
-                                time they log in they'll be asked to join as{' '}
-                                {role?.name}. Until then they're listed under
-                                Invited.
-                            </DialogDescription>
-                        </DialogHeader>
-                        <DialogFooter>
-                            <Button onClick={onClose}>Done</Button>
-                        </DialogFooter>
-                    </>
-                ) : (
-                    <>
-                        <DialogHeader>
-                            <DialogTitle>Invite a student</DialogTitle>
-                            <DialogDescription>
-                                New to the app: creates their account in this
-                                class and emails them a link to set their
-                                password. Already has an account: they accept
-                                the invite next time they log in.
-                            </DialogDescription>
-                        </DialogHeader>
-                        <form
-                            className="grid gap-4"
-                            onSubmit={handleSubmit}
-                            noValidate
+                <DialogHeader>
+                    <DialogTitle>Invite a student</DialogTitle>
+                    <DialogDescription>
+                        New to the app: creates their account in this class and
+                        emails them a link to set their password. Already has an
+                        account: they accept the invite next time they log in.
+                    </DialogDescription>
+                </DialogHeader>
+                <form className="grid gap-4" onSubmit={handleSubmit} noValidate>
+                    <FormMessage message={error} />
+                    <div className="grid gap-4 sm:grid-cols-2">
+                        <div className="grid gap-2">
+                            <Label htmlFor="invite-first-name">
+                                First name
+                            </Label>
+                            <Input
+                                id="invite-first-name"
+                                autoComplete="off"
+                                maxLength={MAX_NAME_LENGTH}
+                                value={firstName}
+                                onChange={(event) =>
+                                    setFirstName(event.target.value)
+                                }
+                            />
+                        </div>
+                        <div className="grid gap-2">
+                            <Label htmlFor="invite-last-name">Last name</Label>
+                            <Input
+                                id="invite-last-name"
+                                autoComplete="off"
+                                maxLength={MAX_NAME_LENGTH}
+                                value={lastName}
+                                onChange={(event) =>
+                                    setLastName(event.target.value)
+                                }
+                            />
+                        </div>
+                    </div>
+                    <div className="grid gap-2">
+                        <Label htmlFor="invite-email">School email</Label>
+                        <Input
+                            id="invite-email"
+                            type="email"
+                            autoComplete="off"
+                            value={email}
+                            onChange={(event) => setEmail(event.target.value)}
+                        />
+                    </div>
+                    <div className="grid gap-2">
+                        <Label htmlFor="invite-role">Role</Label>
+                        <NativeSelect
+                            id="invite-role"
+                            value={roleId}
+                            onChange={(event) => setRoleId(event.target.value)}
                         >
-                            <FormMessage message={error} />
-                            <div className="grid gap-4 sm:grid-cols-2">
-                                <div className="grid gap-2">
-                                    <Label htmlFor="invite-first-name">
-                                        First name
-                                    </Label>
-                                    <Input
-                                        id="invite-first-name"
-                                        autoComplete="off"
-                                        maxLength={MAX_NAME_LENGTH}
-                                        value={firstName}
-                                        onChange={(event) =>
-                                            setFirstName(event.target.value)
-                                        }
-                                    />
-                                </div>
-                                <div className="grid gap-2">
-                                    <Label htmlFor="invite-last-name">
-                                        Last name
-                                    </Label>
-                                    <Input
-                                        id="invite-last-name"
-                                        autoComplete="off"
-                                        maxLength={MAX_NAME_LENGTH}
-                                        value={lastName}
-                                        onChange={(event) =>
-                                            setLastName(event.target.value)
-                                        }
-                                    />
-                                </div>
-                            </div>
-                            <div className="grid gap-2">
-                                <Label htmlFor="invite-email">
-                                    School email
-                                </Label>
-                                <Input
-                                    id="invite-email"
-                                    type="email"
-                                    autoComplete="off"
-                                    value={email}
-                                    onChange={(event) =>
-                                        setEmail(event.target.value)
-                                    }
-                                />
-                            </div>
-                            <div className="grid gap-2">
-                                <Label htmlFor="invite-role">Role</Label>
-                                <NativeSelect
-                                    id="invite-role"
-                                    value={roleId}
-                                    onChange={(event) =>
-                                        setRoleId(event.target.value)
-                                    }
-                                >
-                                    {roles.map((item) => (
-                                        <option key={item.id} value={item.id}>
-                                            {item.name}
-                                        </option>
-                                    ))}
-                                </NativeSelect>
-                            </div>
-                            <DialogFooter>
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    onClick={onClose}
-                                    disabled={submitting}
-                                >
-                                    Cancel
-                                </Button>
-                                <Button type="submit" disabled={submitting}>
-                                    {submitting ? 'Inviting…' : 'Send invite'}
-                                </Button>
-                            </DialogFooter>
-                        </form>
-                    </>
-                )}
+                            {roles.map((item) => (
+                                <option key={item.id} value={item.id}>
+                                    {item.name}
+                                </option>
+                            ))}
+                        </NativeSelect>
+                    </div>
+                    <DialogFooter>
+                        <Button
+                            type="button"
+                            variant="outline"
+                            onClick={onClose}
+                            disabled={submitting}
+                        >
+                            Cancel
+                        </Button>
+                        <Button type="submit" disabled={submitting}>
+                            {submitting ? 'Inviting…' : 'Send invite'}
+                        </Button>
+                    </DialogFooter>
+                </form>
             </DialogContent>
         </Dialog>
     );

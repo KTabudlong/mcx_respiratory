@@ -5,6 +5,7 @@ import { Link, useNavigate, useParams } from 'react-router';
 import { PostComments } from '@/components/comments/post-comments';
 import { FormMessage } from '@/components/common/form-message';
 import { PageLoader } from '@/components/common/page-loader';
+import { EditHistoryDialog } from '@/components/posts/edit-history-dialog';
 import { LinkChips } from '@/components/posts/link-chips';
 import { PostActions } from '@/components/posts/post-actions';
 import { PostBody } from '@/components/posts/post-body';
@@ -35,6 +36,7 @@ export default function PostShow() {
     const classGroup = useDocument<ClassGroup>(`classes/${classId}`);
     const myVotes = useMyVotes(classId);
     const [actionError, setActionError] = useState('');
+    const [historyOpen, setHistoryOpen] = useState(false);
     const feedPath = `/classes/${classId}`;
 
     const backLink = (
@@ -86,6 +88,7 @@ export default function PostShow() {
                         post={post.data}
                         author={author.data ?? undefined}
                         editor={editor.data ?? undefined}
+                        onShowHistory={() => setHistoryOpen(true)}
                     />
                     <PostActions
                         post={post.data}
@@ -117,6 +120,12 @@ export default function PostShow() {
                 classOpen={classOpen}
                 myVotes={myVotes.votes}
             />
+            {historyOpen && (
+                <EditHistoryDialog
+                    post={post.data}
+                    onClose={() => setHistoryOpen(false)}
+                />
+            )}
         </div>
     );
 }

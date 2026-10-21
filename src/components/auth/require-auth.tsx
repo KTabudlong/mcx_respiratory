@@ -4,8 +4,8 @@ import { FormMessage } from '@/components/common/form-message';
 import { PageLoader } from '@/components/common/page-loader';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/use-auth';
+import { useLogOut } from '@/hooks/use-log-out';
 import { getSignupStep, isApproved } from '@/lib/account-status';
-import { logOut } from '@/lib/auth';
 import { getErrorMessage } from '@/lib/errors';
 
 // UI convenience only — firestore.rules enforce the same checks.
@@ -25,6 +25,7 @@ export function RequireAuth({
         error,
     } = useAuth();
     const location = useLocation();
+    const logOut = useLogOut();
 
     if (loading) {
         return <PageLoader />;
@@ -40,7 +41,7 @@ export function RequireAuth({
         return (
             <div className="mx-auto flex w-full max-w-md flex-col gap-4 p-4">
                 <FormMessage message={getErrorMessage(error)} />
-                <Button variant="outline" onClick={() => logOut()}>
+                <Button variant="outline" onClick={() => void logOut()}>
                     Log out
                 </Button>
             </div>

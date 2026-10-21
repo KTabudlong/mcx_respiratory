@@ -1,5 +1,6 @@
 import type { FormEvent } from 'react';
 import { useState } from 'react';
+import { toast } from 'sonner';
 
 import { FormMessage } from '@/components/common/form-message';
 import { Button } from '@/components/ui/button';
@@ -43,12 +44,13 @@ export function ClassRequestDialog({ onClose }: { onClose: () => void }) {
     const [error, setError] = useState('');
     const [busy, setBusy] = useState(false);
 
-    async function run(action: () => Promise<unknown>) {
+    async function run(action: () => Promise<unknown>, successMessage: string) {
         setBusy(true);
         setError('');
 
         try {
             await action();
+            toast.success(successMessage);
         } catch (err) {
             setError(getErrorMessage(err));
         } finally {
@@ -73,7 +75,10 @@ export function ClassRequestDialog({ onClose }: { onClose: () => void }) {
         setError(message);
 
         if (!message) {
-            run(() => requestClass(user.uid, { ...input, note }));
+            run(
+                () => requestClass(user.uid, { ...input, note }),
+                `Request for ${input.name.trim()} sent. The admin will review it.`,
+            );
         }
     }
 
@@ -109,7 +114,10 @@ export function ClassRequestDialog({ onClose }: { onClose: () => void }) {
                                 variant="outline"
                                 disabled={busy}
                                 onClick={() =>
-                                    run(() => deleteClassRequest(request.id))
+                                    run(
+                                        () => deleteClassRequest(request.id),
+                                        'Class request cancelled.',
+                                    )
                                 }
                             >
                                 Cancel request

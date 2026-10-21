@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { toast } from 'sonner';
 
 import { FormMessage } from '@/components/common/form-message';
 import { Button } from '@/components/ui/button';
@@ -35,6 +36,7 @@ export function SentInvitesList({
 
         try {
             await deleteInvite(invite);
+            toast.success(`Invite to ${invite.email} cancelled.`);
         } catch (err) {
             setError(getErrorMessage(err));
         } finally {

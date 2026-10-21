@@ -1,29 +1,12 @@
-import {
-    LayoutDashboard,
-    LogOut,
-    Plus,
-    School,
-    UserPen,
-    UserRound,
-} from 'lucide-react';
-import { useState } from 'react';
+import { Plus } from 'lucide-react';
 import { Link, useMatch, useNavigate } from 'react-router';
 
-import { ClassRequestDialog } from '@/components/board/class-request-dialog';
 import { NotificationsMenu } from '@/components/board/notifications-menu';
 import { NativeSelect } from '@/components/common/native-select';
+import { UserMenu } from '@/components/common/user-menu';
 import { Button } from '@/components/ui/button';
-import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuLabel,
-    DropdownMenuSeparator,
-    DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import { useAuth } from '@/hooks/use-auth';
 import { useMyClasses } from '@/hooks/use-my-classes';
-import { logOut } from '@/lib/auth';
 import { rememberClass } from '@/lib/last-class';
 
 function ClassSwitcher({ classId }: { classId: string | undefined }) {
@@ -56,63 +39,6 @@ function ClassSwitcher({ classId }: { classId: string | undefined }) {
                     </option>
                 ))}
             </NativeSelect>
-        </>
-    );
-}
-
-function UserMenu() {
-    const { profile, user, hasAdminAccess } = useAuth();
-    const [requestOpen, setRequestOpen] = useState(false);
-
-    return (
-        <>
-            <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                    <Button
-                        variant="ghost"
-                        size="icon"
-                        aria-label="Account menu"
-                    >
-                        <UserRound aria-hidden />
-                    </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-56">
-                    <DropdownMenuLabel className="grid font-normal">
-                        <span className="truncate font-medium">
-                            {profile?.firstName} {profile?.lastName}
-                        </span>
-                        <span className="truncate text-xs text-muted-foreground">
-                            {user?.email}
-                        </span>
-                    </DropdownMenuLabel>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem asChild>
-                        <Link to="/profile">
-                            <UserPen aria-hidden />
-                            Profile
-                        </Link>
-                    </DropdownMenuItem>
-                    {hasAdminAccess && (
-                        <DropdownMenuItem asChild>
-                            <Link to="/admin">
-                                <LayoutDashboard aria-hidden />
-                                Admin panel
-                            </Link>
-                        </DropdownMenuItem>
-                    )}
-                    <DropdownMenuItem onSelect={() => setRequestOpen(true)}>
-                        <School aria-hidden />
-                        Request a new class
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onSelect={() => logOut()}>
-                        <LogOut aria-hidden />
-                        Log out
-                    </DropdownMenuItem>
-                </DropdownMenuContent>
-            </DropdownMenu>
-            {requestOpen && (
-                <ClassRequestDialog onClose={() => setRequestOpen(false)} />
-            )}
         </>
     );
 }

@@ -196,6 +196,7 @@ export default function AdminClasses() {
                             ? 'Archive'
                             : 'Unarchive'
                     }
+                    successMessage={`${dialog.classGroup.name} ${dialog.classGroup.archivedAt === null ? 'archived' : 'unarchived'}.`}
                     onConfirm={() =>
                         setClassArchived(
                             dialog.classGroup.id,

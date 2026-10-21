@@ -3,10 +3,12 @@ import {
     collection,
     doc,
     getCountFromServer,
+    getDoc,
     query,
     serverTimestamp,
     updateDoc,
     where,
+    writeBatch,
 } from 'firebase/firestore';
 
 import { db } from '@/lib/firebase';
@@ -76,19 +78,58 @@ export function updateComment(comment: Comment, body: string) {
     });
 }
 
-export function softDeleteComment(comment: Comment) {
-    return updateDoc(commentRef(comment), {
+export function commentArchiveRef(
+    comment: Pick<Comment, 'classId' | 'postId' | 'id'>,
+) {
+    return doc(commentRef(comment), 'archive', 'body');
+}
+
+// A deleted comment is a "[deleted]" tombstone everyone can see: its text
+// moves to archive/body (author and moderators only) in the same batch.
+export async function softDeleteComment(comment: Comment) {
+    const batch = writeBatch(db);
+
+    batch.set(commentArchiveRef(comment), { body: comment.body });
+    batch.update(commentRef(comment), {
+        body: '',
         deletedAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
     });
+
+    await batch.commit();
 }
 
-// Moderators only (comments.delete_any).
-export function restoreComment(comment: Comment) {
-    return updateDoc(commentRef(comment), {
+// Moderators only (comments.delete_any). Tombstones get their text back
+// from the archive; comments deleted before tombstones still hold theirs.
+export async function restoreComment(comment: Comment) {
+    if (comment.body !== '') {
+        await updateDoc(commentRef(comment), {
+            deletedAt: null,
+            updatedAt: serverTimestamp(),
+        });
+
+        return;
+    }
+
+    const archive = await getDoc(commentArchiveRef(comment));
+    const body = archive.data()?.body;
+
+    if (typeof body !== 'string') {
+        throw new Error(
+            "This comment's text wasn't found, so it can't be restored.",
+        );
+    }
+
+    const batch = writeBatch(db);
+
+    batch.update(commentRef(comment), {
+        body,
         deletedAt: null,
         updatedAt: serverTimestamp(),
     });
+    batch.delete(commentArchiveRef(comment));
+
+    await batch.commit();
 }
 
 // Firestore's COUNT(*): one read per 1,000 comments, not live.

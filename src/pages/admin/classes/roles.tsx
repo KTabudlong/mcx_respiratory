@@ -216,6 +216,7 @@ export default function ClassRoles() {
                     title={`Delete ${dialog.role.name}?`}
                     description="Nobody holds this role, so nothing else changes."
                     confirmLabel="Delete role"
+                    successMessage={`${dialog.role.name} role deleted.`}
                     destructive
                     onConfirm={() => deleteRole(classId, dialog.role.id)}
                     onClose={() => setDialog(null)}

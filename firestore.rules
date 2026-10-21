@@ -640,16 +640,19 @@ service cloud.firestore {
 
         // Edit: the author (still in the class) or posts.edit_any, stamped
         // with who edited (shown on the post). Pinning can ride along only
-        // with posts.pin.
+        // with posts.pin. Every edit bumps editCount and writes edits/{n} in
+        // the same batch, so the history can't skip an edit.
         allow update: if resource.data.deletedAt == null
           && classIsOpen()
           && ((isAuthor() && inClass(classId)) || canIn(classId, 'posts.edit_any'))
           && changedKeys().hasOnly([
             'title', 'body', 'format', 'imageIds', 'links', 'pinned',
-            'editedBy', 'editedAt', 'updatedAt'
+            'editedBy', 'editedAt', 'editCount', 'updatedAt'
           ])
           && incoming().editedBy == request.auth.uid
           && incoming().editedAt == request.time
+          && incoming().editCount == resource.data.get('editCount', 0) + 1
+          && existsAfter(/databases/$(database)/documents/classes/$(classId)/posts/$(postId)/edits/$(string(incoming().editCount)))
           && hasValidContent(incoming())
           && (!('pinned' in changedKeys()) || canIn(classId, 'posts.pin'))
           && incoming().pinned is bool
@@ -687,6 +690,30 @@ service cloud.firestore {
             + voteChange(/databases/$(database)/documents/classes/$(classId)/posts/$(postId)/votes/$(request.auth.uid));
 
         allow delete: if false;
+
+        // ----- edit history (who, when, which parts) -----
+        //
+        // edits/{n} matches the post's editCount after the batch, so each
+        // number is written once, by the editor, with the edit itself.
+        match /edits/{editId} {
+          function postPath() {
+            return /databases/$(database)/documents/classes/$(classId)/posts/$(postId);
+          }
+
+          allow read: if inClass(classId);
+
+          allow create: if inClass(classId)
+            && editId == string(getAfter(postPath()).data.editCount)
+            && getAfter(postPath()).data.editedBy == request.auth.uid
+            && getAfter(postPath()).data.editedAt == request.time
+            && incoming().keys().hasOnly(['editorId', 'editedAt', 'changes'])
+            && incoming().editorId == request.auth.uid
+            && incoming().editedAt == request.time
+            && incoming().changes is list
+            && incoming().changes.hasOnly(['title', 'body', 'links', 'photos']);
+
+          allow update, delete: if false;
+        }
 
         // ----- votes (see the votes helpers at the top) -----
         match /votes/{uid} {
@@ -783,10 +810,17 @@ service cloud.firestore {
                   && get(commentPath(data.parentId)).data.ancestorIds.concat([data.parentId]) == data.ancestorIds));
           }
 
-          // Board queries filter deletedAt == null; deleted comments are
-          // visible to their author and moderators only.
+          function archivePath() {
+            return /databases/$(database)/documents/classes/$(classId)/posts/$(postId)/comments/$(commentId)/archive/body;
+          }
+
+          // Live comments, and "[deleted]" tombstones (body moved to
+          // archive/body, so body == '') for everyone in the class. Older
+          // deleted comments that still hold their text: author and
+          // moderators only.
           allow read: if inClass(classId)
             && (resource.data.deletedAt == null
+              || resource.data.body == ''
               || isCommentAuthor()
               || canIn(classId, 'comments.delete_any'));
 
@@ -816,19 +850,30 @@ service cloud.firestore {
             && incoming().updatedAt == request.time;
 
           // Soft delete: the author (still in the class) or comments.delete_any.
+          // The text moves to archive/body in the same batch and the comment
+          // keeps an empty body, so it can show as "[deleted]".
           allow update: if resource.data.deletedAt == null
             && ((isCommentAuthor() && inClass(classId))
               || canIn(classId, 'comments.delete_any'))
-            && changedKeys().hasOnly(['deletedAt', 'updatedAt'])
+            && changedKeys().hasOnly(['deletedAt', 'updatedAt', 'body'])
+            && incoming().body == ''
+            && getAfter(archivePath()).data.body == resource.data.body
             && incoming().deletedAt == request.time
             && incoming().updatedAt == request.time;
 
-          // Restore: moderators only.
+          // Restore: moderators only. Tombstones get their text back from the
+          // archive (deleted in the same batch); older deleted comments
+          // still hold theirs.
           allow update: if resource.data.deletedAt != null
             && canIn(classId, 'comments.delete_any')
-            && changedKeys().hasOnly(['deletedAt', 'updatedAt'])
             && incoming().deletedAt == null
-            && incoming().updatedAt == request.time;
+            && incoming().updatedAt == request.time
+            && ((resource.data.body == ''
+                && changedKeys().hasOnly(['deletedAt', 'updatedAt', 'body'])
+                && incoming().body == get(archivePath()).data.body
+                && !existsAfter(archivePath()))
+              || (resource.data.body != ''
+                && changedKeys().hasOnly(['deletedAt', 'updatedAt'])));
 
           // Vote: like posts, only the score, by your own vote's change.
           allow update: if resource.data.deletedAt == null
@@ -840,6 +885,26 @@ service cloud.firestore {
               + voteChange(/databases/$(database)/documents/classes/$(classId)/posts/$(postId)/comments/$(commentId)/votes/$(request.auth.uid));
 
           allow delete: if false;
+
+          // A deleted comment's text: the author and moderators only.
+          match /archive/{docId} {
+            allow read: if inClass(classId)
+              && (get(commentPath(commentId)).data.userId == request.auth.uid
+                || canIn(classId, 'comments.delete_any'));
+
+            allow create: if docId == 'body'
+              && inClass(classId)
+              && (get(commentPath(commentId)).data.userId == request.auth.uid
+                || canIn(classId, 'comments.delete_any'))
+              && incoming().keys().hasOnly(['body'])
+              && incoming().body == get(commentPath(commentId)).data.body
+              && getAfter(commentPath(commentId)).data.deletedAt == request.time;
+
+            allow delete: if canIn(classId, 'comments.delete_any')
+              && getAfter(commentPath(commentId)).data.deletedAt == null;
+
+            allow update: if false;
+          }
 
           match /votes/{uid} {
             function canVote() {

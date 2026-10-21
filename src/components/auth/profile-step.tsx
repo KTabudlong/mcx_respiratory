@@ -23,7 +23,8 @@ import type {
 // Sign-up's profile step, and the /profile page when `onSaved` is given.
 // Invited accounts already have a profile and a class; the student confirms
 // their name and adds their own contact details (consent must come from
-// them). Self sign-ups also pick the class they want to join.
+// them). Self sign-ups may pick a class to request; without one they wait on
+// /pending (request later, accept an invite, or ask for a new class).
 export function ProfileStep({
     uid,
     email,
@@ -66,8 +67,7 @@ export function ProfileStep({
             validateName('Last name', lastName) ||
             (normalizedPhone === null
                 ? 'Enter a valid phone number, like (312) 555-1234.'
-                : '') ||
-            (pickClass && classId === '' ? 'Choose your class.' : '');
+                : '');
 
         setError(message);
 
@@ -84,7 +84,7 @@ export function ProfileStep({
                 profileExists: profile !== null,
                 contact,
                 memberships,
-                joinClassId: pickClass ? classId : null,
+                joinClassId: pickClass && classId !== '' ? classId : null,
                 input: {
                     firstName,
                     lastName,
@@ -151,6 +151,7 @@ export function ProfileStep({
                     id="join-class"
                     classes={classes.data}
                     value={classId}
+                    optional
                     onChange={setClassId}
                 />
             )}

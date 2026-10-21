@@ -1,4 +1,5 @@
 import { Link, useNavigate } from 'react-router';
+import { toast } from 'sonner';
 
 import { ProfileStep } from '@/components/auth/profile-step';
 import { PageLoader } from '@/components/common/page-loader';
@@ -36,7 +37,10 @@ export default function Profile() {
                     profile={profile}
                     contact={contact}
                     memberships={memberships}
-                    onSaved={() => navigate('/')}
+                    onSaved={() => {
+                        toast.success('Profile saved.');
+                        navigate('/');
+                    }}
                 />
                 <Button asChild variant="ghost">
                     <Link to="/">Cancel</Link>

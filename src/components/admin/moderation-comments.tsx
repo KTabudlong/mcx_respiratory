@@ -1,16 +1,36 @@
 import { useState } from 'react';
+import { toast } from 'sonner';
 
 import { FormMessage } from '@/components/common/form-message';
 import { PageLoader } from '@/components/common/page-loader';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useCollection } from '@/hooks/use-collection';
+import { useDocument } from '@/hooks/use-document';
 import { useUsersById } from '@/hooks/use-users-by-id';
 import { restoreComment, softDeleteComment } from '@/lib/comments';
 import { formatDateTime } from '@/lib/dates';
 import { getErrorMessage } from '@/lib/errors';
 import { cn } from '@/lib/utils';
 import type { Comment, Post } from '@/types';
+
+// A tombstone's text lives in its archive doc; older deleted comments and
+// live ones carry their own.
+function CommentText({ comment }: { comment: Comment }) {
+    const archived = comment.deletedAt !== null && comment.body === '';
+    const archive = useDocument<{ id: string; body: string }>(
+        archived
+            ? `classes/${comment.classId}/posts/${comment.postId}/comments/${comment.id}/archive/body`
+            : null,
+    );
+    const body = archived ? archive.data?.body : comment.body;
+
+    return (
+        <p className="line-clamp-4 text-sm break-words whitespace-pre-wrap">
+            {body ?? (archive.loading ? '…' : '(text not found)')}
+        </p>
+    );
+}
 
 // Every comment on one post, deleted ones included (comments.delete_any),
 // oldest first, with delete / restore.
@@ -27,11 +47,16 @@ export function ModerationComments({ post }: { post: Post }) {
     );
 
     async function run(comment: Comment, action: () => Promise<void>) {
+        const wasDeleted = comment.deletedAt !== null;
+
         setBusyId(comment.id);
         setError('');
 
         try {
             await action();
+            toast.success(
+                wasDeleted ? 'Comment restored.' : 'Comment deleted.',
+            );
         } catch (err) {
             setError(getErrorMessage(err));
         } finally {
@@ -81,9 +106,7 @@ export function ModerationComments({ post }: { post: Post }) {
                                         <Badge variant="outline">Deleted</Badge>
                                     )}
                                 </p>
-                                <p className="line-clamp-4 text-sm break-words whitespace-pre-wrap">
-                                    {comment.body}
-                                </p>
+                                <CommentText comment={comment} />
                             </div>
                             <Button
                                 size="sm"

@@ -1,6 +1,21 @@
 import { describe, expect, it } from 'vitest';
 
-import { linkLabel, normalizeUrl, preparePost } from '@/lib/posts';
+import { linkLabel, normalizeUrl, postMatches, preparePost } from '@/lib/posts';
+
+describe('postMatches', () => {
+    const post = {
+        title: 'Clinical schedule',
+        body: '<p>Bring your <strong>badge</strong> &amp; stethoscope</p>',
+        format: 'html' as const,
+    };
+
+    it('matches the title or the text, ignoring formatting', () => {
+        expect(postMatches(post, 'clinical')).toBe(true);
+        expect(postMatches(post, 'badge')).toBe(true);
+        expect(postMatches(post, '& stethoscope')).toBe(true);
+        expect(postMatches(post, 'strong')).toBe(false);
+    });
+});
 
 describe('normalizeUrl', () => {
     it('keeps http(s) URLs and adds https:// when missing', () => {

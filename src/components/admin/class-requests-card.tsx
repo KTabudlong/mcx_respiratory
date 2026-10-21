@@ -99,6 +99,7 @@ export function ClassRequestsCard({
                     title={`Create ${action.request.name}?`}
                     description={`${nameOf(action.request.userId)} becomes its President, with every permission in the class.`}
                     confirmLabel="Create class"
+                    successMessage={`${action.request.name} created. ${nameOf(action.request.userId)} is its President.`}
                     onConfirm={() =>
                         approveClassRequest(action.request, user?.uid ?? '')
                     }
@@ -110,6 +111,7 @@ export function ClassRequestsCard({
                     title={`Reject ${action.request.name}?`}
                     description="The request is removed. They can send a new one."
                     confirmLabel="Reject"
+                    successMessage={`Request for ${action.request.name} rejected.`}
                     destructive
                     onConfirm={() => deleteClassRequest(action.request.id)}
                     onClose={() => setAction(null)}

@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
-import { isAllowedEmail } from '@/lib/config';
+import { isAllowedEmail, isTestProject, LIVE_PROJECT_ID } from '@/lib/config';
+
+describe('isTestProject', () => {
+    it('treats only the live project as live', () => {
+        expect(isTestProject(LIVE_PROJECT_ID)).toBe(false);
+        expect(isTestProject('mcx-respiratory-test')).toBe(true);
+    });
+});
 
 describe('isAllowedEmail', () => {
     it('accepts student and instructor school emails', () => {

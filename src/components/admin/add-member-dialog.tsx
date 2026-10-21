@@ -1,5 +1,6 @@
 import type { FormEvent } from 'react';
 import { useState } from 'react';
+import { toast } from 'sonner';
 
 import { FormMessage } from '@/components/common/form-message';
 import { NativeSelect } from '@/components/common/native-select';
@@ -78,6 +79,10 @@ export function AddMemberDialog({
                 role,
                 currentUserId,
                 joinRequestIds.has(userId),
+            );
+            const added = users.data.find((item) => item.id === userId);
+            toast.success(
+                `${added ? `${added.firstName} ${added.lastName}` : 'They'} added as ${role.name}.`,
             );
             onClose();
         } catch (err) {

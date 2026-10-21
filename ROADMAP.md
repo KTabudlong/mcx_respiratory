@@ -26,9 +26,9 @@
 
 ## Short-term checklist
 
-**Planning last reviewed:** 2026-10-19
+**Planning last reviewed:** 2026-10-21
 
-**Current milestone:** Manual testing in progress (Phase 2b partly done 2026-10-19). Added 2026-10-19: role-change confirm, rank tooltip, invites for existing accounts, notifications, email consent, `/profile` — rules/index deployed. Next: finish the manual-test checklists, then merge `dev` → `main` / Phase 6.
+**Current milestone:** Manual testing on the **test project** (sections 0–7 of the 2026-10-21 run pass; 8–9 tested with feedback, now fixed; 10–11 left). 2026-10-21 changes need re-checking, and their rules go to production with the `dev` → `main` merge. Then Phase 6.
 
 ### Planning — data model + UI ✅ 2026-10-08
 
@@ -187,6 +187,25 @@
 - [ ] Super admin edit of a user's name + phone with a change log (who, when, field, old → new); SMS / email consent stays student-only (agreed 2026-10-19, not built)
 - [ ] Decide email delivery for class-change notifications (EmailJS free tier vs officer's own mail app); only email people with `emailOptIn`
 
+### Decided + built 2026-10-21 (test project + testing feedback)
+
+- [x] Second Firebase project `mcx-respiratory-test` for local dev (`.env.local`, `.firebaserc` alias `test`), Auth emails via Mailtrap SMTP; rules + indexes deployed; super admin `superadmin@student.ccc.edu` created by hand
+- [x] "TEST · project" badge when not on the live project (`LIVE_PROJECT_ID` in `src/lib/config.ts`)
+- [x] Sign-up: picking a class is optional; `/pending` says "Join a class" until a request is sent
+- [x] Admin sidebar open/collapsed saved in `localStorage`
+- [x] Success toasts (sonner) for every confirm dialog (now required `successMessage`) and the other actions (invites, approve/reject, accept/decline, requests, profile, posts, pins, moderation restore); errors stay inline
+- [x] Admin header: notifications bell + the board's account menu (shared `UserMenu`: Profile, Board / Admin panel, Request a new class, Log out)
+- [x] Log out always lands on a clean `/login` (next account goes to its own home, not the last page)
+- [x] Feed search matches the post text too (still loaded posts only)
+- [x] Post edit history: `editCount` + `edits/{n}` (who, when, what changed), enforced by rules; dialog from "edited by …"
+- [x] Deleted comments always show "[deleted]" (text moved to `archive/body`, author + moderators only; restore brings it back); moderation shows archived text
+- [x] Comment sort: Sort by Score / Date + ascending / descending (default score, highest first), every reply level
+- [x] Deploy 2026-10-21 rules to the **test** project
+- [ ] **Deploy 2026-10-21 rules to production together with the `dev` → `main` merge** (see Blocked / waiting)
+- [ ] (User) Re-check 2026-10-21 changes: sign up with no class; sidebar stays collapsed after reload; toasts on invite / decline / approve etc.; admin account menu + log out → login as another user lands on their home; search finds words in post text; edit a post twice → history dialog lists both with what changed; delete a comment with no replies → "[deleted]" stays, moderator restores it; comment Sort by Score / Date + direction
+- [ ] (User) Finish the 2026-10-21 test run: section 10 (admin panel: overview, moderation, email / text) and 11 (archive)
+- [ ] Open question: "Comments (5)" while 4 visible on one post — not reproduced; re-check after tombstones
+
 ### Phase 6 — Polish + launch (days 23–25)
 
 - [ ] Install Java 21 (winget); emulator + automated rules tests
@@ -217,6 +236,7 @@ User decisions: gallery (not inline) photos, max 3 per post; quotes + divider, n
 
 - Nothing blocking. Unused GitHub environment variables cleaned up (user, 2026-10-15).
 - Merge `dev` → `main` waits until the user finishes the Phase 2b–5b / presidents / votes / 2026-10-19 manual tests. Production rules are already ahead of `main` (additive / optional fields, so the older live site still works).
+- **2026-10-21 rules (post edit history `editCount` + `edits/{n}`, comment tombstones + `archive/body`) are deployed to the TEST project only.** They break post editing / comment deleting on the older live site, so deploy them to production (`--project default`) **together with** the `dev` → `main` merge.
 
 ---
 
@@ -229,3 +249,4 @@ User decisions: gallery (not inline) photos, max 3 per post; quotes + divider, n
 - **2026-10-08** — Class is the anchor: membership pivot (`classes/{classId}/members/{uid}`), roles per class plus app-wide roles, posts/comments nested under classes.
 - **2026-10-08** — Designed (not built): super admin → class → ranked class roles; class officers get their own admin panel; join requests at sign-up; `createdBy`/`addedBy` audit fields; classmates see phones. Roles editor moves from Phase 5 into Phase 2b.
 - **2026-10-19** — Manual testing started. Built + deployed: role-change confirm, rank tooltip, invites for existing accounts (accept / decline), in-app notifications for class changes, email-update consent, `/profile` page. Agreed: super admin can edit name + phone with a change log (not built); consent stays student-only.
+- **2026-10-21** — Test Firebase project + Mailtrap for fake accounts; TEST badge. Testing feedback built: optional class at sign-up, saved sidebar state, toasts everywhere, admin account menu, clean logout redirect, text search, post edit history (rules-enforced), Reddit-style "[deleted]" comments, comment sort by score / date + direction. New rules on the test project only until the merge.

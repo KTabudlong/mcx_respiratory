@@ -154,6 +154,7 @@ export default function AdminUsers() {
                         title={`Deactivate ${toggling.firstName} ${toggling.lastName}?`}
                         description="They'll be locked out of every class right away. Their posts, comments and memberships stay, and you can restore them later."
                         confirmLabel="Deactivate"
+                        successMessage={`${toggling.firstName} ${toggling.lastName} deactivated.`}
                         destructive
                         onConfirm={() => setUserDeactivated(toggling.id, true)}
                         onClose={() => setToggling(null)}
@@ -163,6 +164,7 @@ export default function AdminUsers() {
                         title={`Restore ${toggling.firstName} ${toggling.lastName}?`}
                         description="They get their access back with the same classes and roles."
                         confirmLabel="Restore"
+                        successMessage={`${toggling.firstName} ${toggling.lastName} restored.`}
                         onConfirm={() => setUserDeactivated(toggling.id, false)}
                         onClose={() => setToggling(null)}
                     />

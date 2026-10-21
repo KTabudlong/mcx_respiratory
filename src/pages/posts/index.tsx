@@ -24,7 +24,7 @@ import {
     hasClassPermission,
     postAbilities,
 } from '@/lib/permissions';
-import { FEED_PAGE_SIZE } from '@/lib/posts';
+import { FEED_PAGE_SIZE, postMatches } from '@/lib/posts';
 import { postPath } from '@/lib/votes';
 import type { ClassGroup, ClassMember } from '@/types';
 
@@ -51,7 +51,7 @@ function ClassFeed({ classId }: { classId: string }) {
     const canVote = canVoteIn(access, classOpen);
     const query = search.trim().toLowerCase();
     const posts = query
-        ? feed.posts.filter((post) => post.title.toLowerCase().includes(query))
+        ? feed.posts.filter((post) => postMatches(post, query))
         : feed.posts;
     const firstLoad = feed.loading && feed.posts.length === 0;
     const error = feed.error ?? classGroup.error ?? myVotes.error;
@@ -87,8 +87,8 @@ function ClassFeed({ classId }: { classId: string }) {
                         <SearchInput
                             value={search}
                             onChange={setSearch}
-                            label="Search loaded posts by title"
-                            placeholder="Search post titles"
+                            label="Search loaded posts by title or text"
+                            placeholder="Search posts"
                         />
                     </div>
                 </div>

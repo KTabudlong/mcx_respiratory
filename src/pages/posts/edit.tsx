@@ -1,4 +1,5 @@
 import { useNavigate, useParams } from 'react-router';
+import { toast } from 'sonner';
 
 import { FormMessage } from '@/components/common/form-message';
 import { PageLoader } from '@/components/common/page-loader';
@@ -16,7 +17,7 @@ import { usePostImages } from '@/hooks/use-post-images';
 import { getErrorMessage } from '@/lib/errors';
 import { postAbilities } from '@/lib/permissions';
 import { imageSrc } from '@/lib/post-images';
-import { updatePost } from '@/lib/posts';
+import { postChanges, setPostPinned, updatePost } from '@/lib/posts';
 import { postBodyHtml } from '@/lib/rich-text';
 import type { ClassGroup, Post } from '@/types';
 
@@ -78,14 +79,50 @@ export default function PostEdit() {
                         submitLabel="Save changes"
                         onCancel={() => navigate(postPath)}
                         onSubmit={async (input, drafts) => {
+                            const saved = post.data;
+
+                            if (!saved) {
+                                return;
+                            }
+
                             const imageIds = drafts.map((draft) => draft.id);
+                            const pinnedChanged = input.pinned !== saved.pinned;
+                            const changes = postChanges(
+                                {
+                                    ...saved,
+                                    bodyHtml: postBodyHtml(saved),
+                                },
+                                input,
+                                imageIds,
+                            );
+
+                            if (changes.length === 0) {
+                                if (pinnedChanged) {
+                                    await setPostPinned(
+                                        classId,
+                                        postId,
+                                        input.pinned,
+                                    );
+                                }
+
+                                toast.success(
+                                    pinnedChanged
+                                        ? input.pinned
+                                            ? 'Post pinned to top.'
+                                            : 'Post unpinned.'
+                                        : 'Nothing changed.',
+                                );
+                                navigate(postPath, { replace: true });
+
+                                return;
+                            }
 
                             await updatePost(
                                 classId,
                                 postId,
                                 user?.uid ?? '',
                                 input,
-                                input.pinned !== post.data?.pinned,
+                                pinnedChanged,
                                 {
                                     imageIds,
                                     added: drafts.flatMap((draft) =>
@@ -95,7 +132,12 @@ export default function PostEdit() {
                                         (id) => !imageIds.includes(id),
                                     ),
                                 },
+                                {
+                                    editCount: saved.editCount ?? 0,
+                                    changes,
+                                },
                             );
+                            toast.success('Post saved.');
                             navigate(postPath, { replace: true });
                         }}
                     />

@@ -1,4 +1,5 @@
 import { useNavigate, useParams } from 'react-router';
+import { toast } from 'sonner';
 
 import { PageLoader } from '@/components/common/page-loader';
 import { PostForm } from '@/components/posts/post-form';
@@ -58,6 +59,7 @@ export default function PostNew() {
                                 ),
                             );
 
+                            toast.success('Post published.');
                             navigate(`${feedPath}/posts/${id}`, {
                                 replace: true,
                             });

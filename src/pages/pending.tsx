@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Link, Navigate } from 'react-router';
+import { toast } from 'sonner';
 
 import { AdminLink } from '@/components/auth/admin-link';
 import { ClassPicker } from '@/components/auth/class-picker';
@@ -19,9 +20,9 @@ import { useAuth } from '@/hooks/use-auth';
 import { useCollection } from '@/hooks/use-collection';
 import { useJoinRequestsOf } from '@/hooks/use-collection-group';
 import { useDocument } from '@/hooks/use-document';
+import { useLogOut } from '@/hooks/use-log-out';
 import { useNotifications } from '@/hooks/use-notifications';
 import { isApproved } from '@/lib/account-status';
-import { logOut } from '@/lib/auth';
 import { getErrorMessage } from '@/lib/errors';
 import { markNotificationsRead } from '@/lib/notifications';
 import { cancelJoinRequest, requestToJoin } from '@/lib/profile';
@@ -31,6 +32,7 @@ import type { ClassGroup, ClassRequest } from '@/types';
 // itself as soon as someone approves the join request.
 export default function Pending() {
     const { profile, contact, memberships, isSuperAdmin } = useAuth();
+    const logOut = useLogOut();
     const deactivated = profile?.deletedAt != null;
     const requests = useJoinRequestsOf(
         profile && !deactivated ? profile.id : null,
@@ -54,13 +56,17 @@ export default function Pending() {
 
     const classById = new Map(classes.data.map((item) => [item.id, item]));
 
-    async function run(action: () => Promise<unknown>) {
+    async function run(action: () => Promise<unknown>, successMessage = '') {
         setBusy(true);
         setError('');
 
         try {
             await action();
             setClassId('');
+
+            if (successMessage) {
+                toast.success(successMessage);
+            }
         } catch (err) {
             setError(getErrorMessage(err));
         } finally {
@@ -74,12 +80,16 @@ export default function Pending() {
                 <CardTitle className="text-xl">
                     {deactivated
                         ? 'Account deactivated'
-                        : 'Waiting for approval'}
+                        : requests.data.length > 0
+                          ? 'Waiting for approval'
+                          : 'Join a class'}
                 </CardTitle>
                 <CardDescription>
                     {deactivated
                         ? 'Contact your instructor if you think this is a mistake.'
-                        : 'Someone in your class who manages students needs to approve you.'}
+                        : requests.data.length > 0
+                          ? 'Someone in your class who manages students needs to approve you.'
+                          : "You're not in a class yet. Ask to join one, accept an invite, or ask to start a new class."}
                 </CardDescription>
             </CardHeader>
             <CardContent className="grid gap-4">
@@ -140,11 +150,13 @@ export default function Pending() {
                                     variant="ghost"
                                     disabled={busy}
                                     onClick={() =>
-                                        run(() =>
-                                            cancelJoinRequest(
-                                                request.userId,
-                                                request.classId,
-                                            ),
+                                        run(
+                                            () =>
+                                                cancelJoinRequest(
+                                                    request.userId,
+                                                    request.classId,
+                                                ),
+                                            'Request cancelled.',
                                         )
                                     }
                                 >
@@ -169,11 +181,14 @@ export default function Pending() {
                                     return;
                                 }
 
-                                run(() =>
-                                    requestToJoin(profile.id, classId, {
-                                        phone: contact?.phone ?? '',
-                                        smsOptIn: contact?.smsOptIn ?? false,
-                                    }),
+                                run(
+                                    () =>
+                                        requestToJoin(profile.id, classId, {
+                                            phone: contact?.phone ?? '',
+                                            smsOptIn:
+                                                contact?.smsOptIn ?? false,
+                                        }),
+                                    `Request sent to ${classById.get(classId)?.name ?? 'the class'}.`,
                                 );
                             }}
                         >
@@ -228,7 +243,7 @@ export default function Pending() {
                         <Link to="/profile">Profile</Link>
                     </Button>
                 )}
-                <Button variant="outline" onClick={() => logOut()}>
+                <Button variant="outline" onClick={() => void logOut()}>
                     Log out
                 </Button>
             </CardContent>

@@ -115,9 +115,25 @@ export type Post = {
     // Last content edit (not pins / deletes); missing until first edited.
     editedBy?: string;
     editedAt?: Timestamp;
+    // Number of logged edits (edits/{n}); missing on posts never edited
+    // since the history began.
+    editCount?: number;
     createdAt: Timestamp;
     updatedAt: Timestamp;
     deletedAt: Timestamp | null;
+};
+
+export type PostChange = 'title' | 'body' | 'links' | 'photos';
+
+// classes/{classId}/posts/{postId}/edits/{n} — one logged edit (who, when,
+// which parts), written with the edit. Never changed or deleted.
+export type PostEdit = {
+    id: string;
+    classId: string;
+    postId: string;
+    editorId: string;
+    editedAt: Timestamp;
+    changes: PostChange[];
 };
 
 // classes/{classId}/posts/{postId}/images/{imageId} — a photo compressed in

@@ -75,9 +75,17 @@
 
 ## Continuity (rolling — agent updates on end session)
 
-**Last updated:** 2026-10-19
+**Last updated:** 2026-10-21
 
 ### Last session
+
+**2026-10-21 (session 6) — test project + Mailtrap; testing feedback fixes**
+
+- **Test setup:** new Firebase project `mcx-respiratory-test` (local dev via `.env.local`, alias `test`), Auth emails through Mailtrap's sandbox SMTP (set in the console), rules + indexes deployed there, super admin `superadmin@student.ccc.edu` (uid `G4V7hJ4NrBRDbJRN95hR14egFBt2`, `admins/` doc made by hand in the console). Amber "TEST · project" badge when not on the live project. Test accounts: Class A (pres, treas, mod, stu1, stu2, + co-pres / co-treas / co-mod / stu3 being added), Class B (requester = President, prof), newbie (join request to Class A).
+- **User test results:** sections 0–7 of the 2026-10-21 run pass; 8–9 tested (feedback below, now built); 10–11 not yet.
+- **Built (checks green, 91 tests):** optional class at sign-up ("Join a class" on `/pending`); admin sidebar state in `localStorage`; sonner toasts everywhere (`ConfirmDialog.successMessage` is required); admin header bell + shared `UserMenu`; `useLogOut()` → clean `/login`; feed search matches post text; **post edit history** (`editCount` + `edits/{n}`, rules-enforced, dialog from "edited by"); **comment tombstones** (`body: ''` + `archive/body`, "[deleted]" always shown, moderators see / restore the text); **comment sort** dropdown Score / Date + asc / desc.
+- **Rules:** the 2026-10-21 rules are on the **test project only** — they break post editing / comment deleting on the older live site, so deploy them to production **with** the `dev` → `main` merge (ROADMAP § Blocked).
+- **Open:** "Comments (5)" while 4 visible on one post, not reproduced — re-check with tombstones. Auto-review requires the user's approval for each rules deploy (even to the test project).
 
 **2026-10-19 (session 5) — manual testing started; invites, notifications, email consent, profile**
 
@@ -93,11 +101,11 @@
 
 ### Resume here
 
-1. **User:** raise classA's President rank, then continue the `ROADMAP.md` manual tests: Phase 2b (rest), "Decided + built 2026-10-19", then Phases 3–5b, presidents, votes, edited-by. Fix what breaks.
-2. **User:** commit on `dev`, then merge `dev` → `main` when happy (classmates need `/profile` live to manage their consent).
-3. Next build candidates: super admin name/phone edit + change log; email delivery decision.
+1. **User (test project, `npm run dev`):** re-check the 2026-10-21 changes (ROADMAP § "Decided + built 2026-10-21"), then finish sections 10 (admin panel) and 11 (archive) of the test run. Fix what breaks.
+2. **Merge day:** user commits on `dev` and merges `dev` → `main`; agent deploys rules + indexes to production in the same step (`npx -y firebase-tools@latest deploy --only firestore --project default`, needs the user's approval).
+3. Next build candidates: super admin name/phone edit + change log; email delivery decision (EmailJS vs `mailto:`).
 4. Optional: backfill `score: 0` on pre-vote posts so **Top** includes them.
-5. **Phase 6** — Java + emulator rules tests (cover invites + notifications), mobile/accessibility pass, invite the class.
+5. **Phase 6** — Java + emulator rules tests (cover invites, notifications, edit history, tombstones), mobile/accessibility pass, invite the class.
 
 ### Caveats
 
@@ -106,7 +114,8 @@
 - `ktabudlong.github.io` is already in Firebase Auth **authorized domains**; add any future custom domain there too (and change Vite `base` to `/`).
 - `npx shadcn add …` writes `import { cn } from "cn"` (TS 6 has no `baseUrl`) — fix to `@/lib/utils` after each add.
 - Laragon's `.test` URL won't work for this project; always use `npm run dev`.
-- Firebase MCP has no emulator behind it yet — every write hits **production**. Ask the user first.
+- **Two Firebase projects (2026-10-21):** `mcx-respiratory` = live (`.env.production`, `.firebaserc` default). `mcx-respiratory-test` = testing (`.env.local`, alias `test`); its Auth emails go through **Mailtrap** SMTP (set in the console, Authentication → Templates → SMTP), so fake `@student.ccc.edu` accounts work. Deploy rules/indexes to **both**: `npx -y firebase-tools@latest deploy --only firestore --project test` and `--project default`. Restart `npm run dev` after changing `.env.local`.
+- Firebase MCP has no emulator behind it yet, and it targets the `.firebaserc` **default (live)** project — every write hits **production**. Ask the user first; for the test project use the CLI with `--project test`.
 - **First** super admin is created by hand (`admins/{uid}` `{ createdAt }`); after that, promote/remove from `/admin/users/:userId` (can't remove yourself).
 - Invites create the Auth login first, then a Firestore batch; if the batch fails the login exists without a profile (the student can still finish sign-up normally).
 - Firebase MCP read-back quirk: `firestore_update_document` / `firestore_get_document` error on fields that are `null` (e.g. `deletedAt`) even when the write succeeded. Pass a `mask` that skips null fields when reading.

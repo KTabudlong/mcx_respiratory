@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { toast } from 'sonner';
 
 import { FormMessage } from '@/components/common/form-message';
 import { NativeSelect } from '@/components/common/native-select';
@@ -34,12 +35,15 @@ function JoinRequestRow({
     const selectId = `join-role-${request.id}`;
     const role = roles.find((item) => item.id === roleId);
 
-    async function run(action: () => Promise<void>) {
+    const name = user ? `${user.firstName} ${user.lastName}` : 'They';
+
+    async function run(action: () => Promise<void>, successMessage: string) {
         setBusy(true);
         setError('');
 
         try {
             await action();
+            toast.success(successMessage);
         } catch (err) {
             setError(getErrorMessage(err));
             setBusy(false);
@@ -80,8 +84,14 @@ function JoinRequestRow({
                         disabled={busy || !role}
                         onClick={() =>
                             role &&
-                            run(() =>
-                                approveJoinRequest(request, role, approvedBy),
+                            run(
+                                () =>
+                                    approveJoinRequest(
+                                        request,
+                                        role,
+                                        approvedBy,
+                                    ),
+                                `${name} approved as ${role.name}.`,
                             )
                         }
                     >
@@ -91,7 +101,12 @@ function JoinRequestRow({
                         size="sm"
                         variant="ghost"
                         disabled={busy}
-                        onClick={() => run(() => rejectJoinRequest(request))}
+                        onClick={() =>
+                            run(
+                                () => rejectJoinRequest(request),
+                                `${name}'s request was rejected.`,
+                            )
+                        }
                     >
                         Reject
                     </Button>

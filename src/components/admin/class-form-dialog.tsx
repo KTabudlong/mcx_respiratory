@@ -1,5 +1,6 @@
 import type { FormEvent } from 'react';
 import { useState } from 'react';
+import { toast } from 'sonner';
 
 import { FormMessage } from '@/components/common/form-message';
 import { NativeSelect } from '@/components/common/native-select';
@@ -70,8 +71,10 @@ export function ClassFormDialog({
         try {
             if (classGroup) {
                 await updateClass(classGroup.id, input);
+                toast.success(`${input.name.trim()} saved.`);
             } else {
                 await createClass(input, presidentId || null, user?.uid ?? '');
+                toast.success(`${input.name.trim()} created.`);
             }
 
             onClose();

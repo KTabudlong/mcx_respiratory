@@ -128,6 +128,11 @@ export default function AdminUserShow() {
                             : 'They can see and manage every class, user and post, and add or remove other super admins.'
                     }
                     confirmLabel={isSuperAdmin ? 'Remove' : 'Make super admin'}
+                    successMessage={
+                        isSuperAdmin
+                            ? `${fullName} is no longer a super admin.`
+                            : `${fullName} is now a super admin.`
+                    }
                     destructive={isSuperAdmin}
                     onConfirm={() =>
                         isSuperAdmin

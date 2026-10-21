@@ -289,6 +289,7 @@ export default function ClassStudents() {
                     title={`Remove ${dialog.row.user?.firstName ?? 'this person'} from the class?`}
                     description="Their account and posts stay. They can request to join again."
                     confirmLabel="Remove"
+                    successMessage={`${dialog.row.user?.firstName ?? 'This person'} was removed from the class.`}
                     destructive
                     onConfirm={() =>
                         removeMember(
@@ -309,6 +310,7 @@ export default function ClassStudents() {
                             : `${dialog.row.user?.firstName ?? 'This person'} has no role right now. Confirming gives them the ${dialog.role.name} permissions in this class.`
                     }
                     confirmLabel="Change role"
+                    successMessage={`${dialog.row.user?.firstName ?? 'This person'} is now ${dialog.role.name}.`}
                     onConfirm={() =>
                         changeMemberRole(
                             classId,

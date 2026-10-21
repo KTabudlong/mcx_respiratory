@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useParams } from 'react-router';
+import { toast } from 'sonner';
 
 import { ClassPageHeader } from '@/components/admin/class-page-header';
 import { ModerationPostRow } from '@/components/admin/moderation-post-row';
@@ -63,6 +64,7 @@ export default function ClassModeration() {
 
         try {
             await restorePost(post.classId, post.id);
+            toast.success(`“${post.title}” restored.`);
         } catch (err) {
             setActionError(getErrorMessage(err));
         }
@@ -167,6 +169,7 @@ export default function ClassModeration() {
                     title={`Delete “${deleting.title}”?`}
                     description="It disappears from the board. You can restore it here later."
                     confirmLabel="Delete post"
+                    successMessage="Post deleted. You can restore it here."
                     destructive
                     onConfirm={() =>
                         softDeletePost(deleting.classId, deleting.id)

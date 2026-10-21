@@ -1,8 +1,11 @@
 import { ExternalLink } from 'lucide-react';
+import { useState } from 'react';
 import { Link, Outlet, useMatch } from 'react-router';
 
 import { AdminBreadcrumbs } from '@/components/admin/admin-breadcrumbs';
 import { AdminSidebar } from '@/components/admin/admin-sidebar';
+import { NotificationsMenu } from '@/components/board/notifications-menu';
+import { UserMenu } from '@/components/common/user-menu';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import {
@@ -10,13 +13,21 @@ import {
     SidebarProvider,
     SidebarTrigger,
 } from '@/components/ui/sidebar';
+import { readSidebarOpen, saveSidebarOpen } from '@/lib/sidebar-state';
 
 // CRM-style shell. Lazy-loaded from the router so students never download it.
 export default function AdminLayout() {
     const classId = useMatch('/admin/classes/:classId/*')?.params.classId;
+    const [sidebarOpen, setSidebarOpen] = useState(readSidebarOpen);
 
     return (
-        <SidebarProvider>
+        <SidebarProvider
+            open={sidebarOpen}
+            onOpenChange={(open) => {
+                setSidebarOpen(open);
+                saveSidebarOpen(open);
+            }}
+        >
             <AdminSidebar />
             <SidebarInset>
                 <header className="flex h-14 items-center gap-2 border-b px-4">
@@ -42,6 +53,8 @@ export default function AdminLayout() {
                             </span>
                         </Link>
                     </Button>
+                    <NotificationsMenu />
+                    <UserMenu />
                 </header>
                 <div className="flex-1 p-4 sm:p-6">
                     <Outlet />

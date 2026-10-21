@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { toast } from 'sonner';
 
 import { FormMessage } from '@/components/common/form-message';
 import { Button } from '@/components/ui/button';
@@ -13,10 +14,12 @@ import {
 import { getErrorMessage } from '@/lib/errors';
 
 // Rendered only while open; closing unmounts it so state resets.
+// `successMessage` is toasted once the action succeeds; errors stay inline.
 export function ConfirmDialog({
     title,
     description,
     confirmLabel,
+    successMessage,
     destructive = false,
     onConfirm,
     onClose,
@@ -24,6 +27,7 @@ export function ConfirmDialog({
     title: string;
     description: string;
     confirmLabel: string;
+    successMessage: string;
     destructive?: boolean;
     onConfirm: () => Promise<unknown>;
     onClose: () => void;
@@ -37,6 +41,7 @@ export function ConfirmDialog({
 
         try {
             await onConfirm();
+            toast.success(successMessage);
             onClose();
         } catch (err) {
             setError(getErrorMessage(err));

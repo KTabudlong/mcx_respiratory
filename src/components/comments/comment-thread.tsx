@@ -163,8 +163,9 @@ function CommentItem({
             {comment && confirming && (
                 <ConfirmDialog
                     title="Delete this comment?"
-                    description="It disappears for everyone; replies stay under a [deleted] marker. Moderators can still restore it."
+                    description="Everyone sees [deleted] in its place, and replies stay. Moderators can still restore it."
                     confirmLabel="Delete comment"
+                    successMessage="Comment deleted."
                     destructive
                     onConfirm={() => softDeleteComment(comment)}
                     onClose={() => setConfirming(false)}

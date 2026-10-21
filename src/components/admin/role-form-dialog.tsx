@@ -1,5 +1,6 @@
 import type { FormEvent } from 'react';
 import { useState } from 'react';
+import { toast } from 'sonner';
 
 import { CheckboxList } from '@/components/admin/checkbox-list';
 import { FormMessage } from '@/components/common/form-message';
@@ -81,8 +82,10 @@ export function RoleFormDialog({
         try {
             if (role) {
                 await updateRole(classId, role.id, input);
+                toast.success(`${input.name.trim()} role saved.`);
             } else {
                 await createRole(classId, input);
+                toast.success(`${input.name.trim()} role created.`);
             }
 
             onClose();

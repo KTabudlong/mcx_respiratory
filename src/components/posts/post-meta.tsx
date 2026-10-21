@@ -8,15 +8,18 @@ function fullName(user: UserProfile | undefined) {
     return user ? `${user.firstName} ${user.lastName}` : '…';
 }
 
-// "Pinned · Jane Doe · 3 hours ago · edited by John Roe 5 min ago"
+// "Pinned · Jane Doe · 3 hours ago · edited by John Roe 5 min ago".
+// With `onShowHistory`, the "edited by" part opens the edit history.
 export function PostMeta({
     post,
     author,
     editor,
+    onShowHistory,
 }: {
     post: Post;
     author: UserProfile | undefined;
     editor: UserProfile | undefined;
+    onShowHistory?: () => void;
 }) {
     const created = post.createdAt.toDate();
     const edited = post.editedAt?.toDate();
@@ -42,15 +45,27 @@ export function PostMeta({
             {post.editedBy && edited && (
                 <>
                     <span aria-hidden>·</span>
-                    <span>
-                        edited by {fullName(editor)}{' '}
-                        <time
-                            dateTime={edited.toISOString()}
-                            title={formatDateTime(edited)}
+                    {onShowHistory ? (
+                        <button
+                            type="button"
+                            className="rounded-sm underline-offset-2 hover:text-foreground hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                            title="See edit history"
+                            onClick={onShowHistory}
                         >
+                            edited by {fullName(editor)}{' '}
                             {formatRelativeTime(edited)}
-                        </time>
-                    </span>
+                        </button>
+                    ) : (
+                        <span>
+                            edited by {fullName(editor)}{' '}
+                            <time
+                                dateTime={edited.toISOString()}
+                                title={formatDateTime(edited)}
+                            >
+                                {formatRelativeTime(edited)}
+                            </time>
+                        </span>
+                    )}
                 </>
             )}
         </div>
