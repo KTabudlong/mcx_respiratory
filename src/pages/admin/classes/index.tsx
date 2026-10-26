@@ -1,57 +1,94 @@
 import { Plus } from 'lucide-react';
 import { useState } from 'react';
-import { Link } from 'react-router';
+import { useSearchParams } from 'react-router';
 
 import { ClassFormDialog } from '@/components/admin/class-form-dialog';
 import { ClassRequestsCard } from '@/components/admin/class-requests-card';
+import { ClassesTable } from '@/components/admin/classes-table';
 import { ConfirmDialog } from '@/components/common/confirm-dialog';
 import { FormMessage } from '@/components/common/form-message';
 import { PageLoader } from '@/components/common/page-loader';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
-} from '@/components/ui/table';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useCollection } from '@/hooks/use-collection';
-import { useAllMemberships } from '@/hooks/use-collection-group';
+import {
+    useAllJoinRequests,
+    useAllMemberships,
+} from '@/hooks/use-collection-group';
 import { setClassArchived, sortClasses } from '@/lib/classes';
 import { getErrorMessage } from '@/lib/errors';
+import { pickParam } from '@/lib/search-params';
 import type { ClassGroup, ClassRequest, UserProfile } from '@/types';
+
+const TABS = ['active', 'archived', 'requests'] as const;
 
 type DialogState =
     | { type: 'form'; classGroup: ClassGroup | null }
     | { type: 'toggle-archive'; classGroup: ClassGroup }
     | null;
 
-// Super admin only (guarded in the router).
+function countBy(items: { classId: string }[]) {
+    const counts = new Map<string, number>();
+
+    for (const item of items) {
+        counts.set(item.classId, (counts.get(item.classId) ?? 0) + 1);
+    }
+
+    return counts;
+}
+
+// Super admin only (guarded in the router). The tab lives in the URL
+// (`?tab=requests`) so dashboard links can open it directly.
 export default function AdminClasses() {
     const classes = useCollection<ClassGroup>('classes');
     const users = useCollection<UserProfile>('users');
     const requests = useCollection<ClassRequest>('classRequests');
     const memberships = useAllMemberships(true);
+    const joinRequests = useAllJoinRequests(true);
+    const [searchParams, setSearchParams] = useSearchParams();
     const [dialog, setDialog] = useState<DialogState>(null);
 
+    const tab = pickParam(searchParams.get('tab'), TABS, 'active');
     const error =
-        classes.error ?? users.error ?? requests.error ?? memberships.error;
+        classes.error ??
+        users.error ??
+        requests.error ??
+        memberships.error ??
+        joinRequests.error;
+    const loading =
+        classes.loading ||
+        users.loading ||
+        memberships.loading ||
+        joinRequests.loading;
     const usersById = new Map(users.data.map((user) => [user.id, user]));
     const deactivatedIds = new Set(
         users.data
             .filter((user) => user.deletedAt !== null)
             .map((user) => user.id),
     );
+    const memberCounts = countBy(
+        memberships.data.filter(
+            (membership) => !deactivatedIds.has(membership.userId),
+        ),
+    );
+    const joinRequestCounts = countBy(joinRequests.data);
+    const sorted = sortClasses(classes.data);
+    const active = sorted.filter((item) => item.archivedAt === null);
+    const archived = sorted.filter((item) => item.archivedAt !== null);
 
-    function memberCount(classId: string) {
-        return memberships.data.filter(
-            (membership) =>
-                membership.classId === classId &&
-                !deactivatedIds.has(membership.userId),
-        ).length;
+    function changeTab(value: string) {
+        setSearchParams(value === 'active' ? {} : { tab: value }, {
+            replace: true,
+        });
     }
+
+    const tableActions = {
+        memberCounts,
+        onEdit: (classGroup: ClassGroup) =>
+            setDialog({ type: 'form', classGroup }),
+        onToggleArchive: (classGroup: ClassGroup) =>
+            setDialog({ type: 'toggle-archive', classGroup }),
+    };
 
     return (
         <div className="grid gap-4">
@@ -76,105 +113,55 @@ export default function AdminClasses() {
 
             {error && <FormMessage message={getErrorMessage(error)} />}
 
-            <ClassRequestsCard
-                requests={[...requests.data].sort(
-                    (a, b) =>
-                        (a.createdAt?.toMillis() ?? 0) -
-                        (b.createdAt?.toMillis() ?? 0),
-                )}
-                usersById={usersById}
-            />
+            <Tabs value={tab} onValueChange={changeTab}>
+                <TabsList>
+                    <TabsTrigger value="active">
+                        Active ({active.length})
+                    </TabsTrigger>
+                    <TabsTrigger value="archived">
+                        Archived ({archived.length})
+                    </TabsTrigger>
+                    <TabsTrigger value="requests">
+                        Requests ({requests.data.length})
+                    </TabsTrigger>
+                </TabsList>
 
-            {classes.loading || users.loading || memberships.loading ? (
-                <PageLoader />
-            ) : (
-                <div className="rounded-md border">
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>Name</TableHead>
-                                <TableHead>Years</TableHead>
-                                <TableHead>Members</TableHead>
-                                <TableHead>Status</TableHead>
-                                <TableHead className="text-right">
-                                    Actions
-                                </TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {classes.data.length === 0 && (
-                                <TableRow>
-                                    <TableCell
-                                        colSpan={5}
-                                        className="py-8 text-center text-muted-foreground"
-                                    >
-                                        No classes yet. Add your first cohort.
-                                    </TableCell>
-                                </TableRow>
-                            )}
-                            {sortClasses(classes.data).map((item) => (
-                                <TableRow key={item.id}>
-                                    <TableCell className="font-medium">
-                                        <Link
-                                            to={`/admin/classes/${item.id}`}
-                                            className="underline-offset-4 hover:underline"
-                                        >
-                                            {item.name}
-                                        </Link>
-                                    </TableCell>
-                                    <TableCell className="whitespace-nowrap">
-                                        {item.startYear}–{item.endYear ?? ''}
-                                    </TableCell>
-                                    <TableCell>
-                                        {memberCount(item.id)}
-                                    </TableCell>
-                                    <TableCell>
-                                        <Badge
-                                            variant={
-                                                item.archivedAt === null
-                                                    ? 'default'
-                                                    : 'outline'
-                                            }
-                                        >
-                                            {item.archivedAt === null
-                                                ? 'Active'
-                                                : 'Archived'}
-                                        </Badge>
-                                    </TableCell>
-                                    <TableCell className="text-right whitespace-nowrap">
-                                        <Button
-                                            size="sm"
-                                            variant="ghost"
-                                            onClick={() =>
-                                                setDialog({
-                                                    type: 'form',
-                                                    classGroup: item,
-                                                })
-                                            }
-                                        >
-                                            Edit
-                                        </Button>
-                                        <Button
-                                            size="sm"
-                                            variant="ghost"
-                                            onClick={() =>
-                                                setDialog({
-                                                    type: 'toggle-archive',
-                                                    classGroup: item,
-                                                })
-                                            }
-                                        >
-                                            {item.archivedAt === null
-                                                ? 'Archive'
-                                                : 'Unarchive'}
-                                        </Button>
-                                    </TableCell>
-                                </TableRow>
-                            ))}
-                        </TableBody>
-                    </Table>
-                </div>
-            )}
+                {loading ? (
+                    <PageLoader />
+                ) : (
+                    <>
+                        <TabsContent value="active">
+                            <ClassesTable
+                                {...tableActions}
+                                classes={active}
+                                joinRequestCounts={joinRequestCounts}
+                                emptyMessage={
+                                    classes.data.length === 0
+                                        ? 'No classes yet. Add your first cohort.'
+                                        : 'No active classes.'
+                                }
+                            />
+                        </TabsContent>
+                        <TabsContent value="archived">
+                            <ClassesTable
+                                {...tableActions}
+                                classes={archived}
+                                emptyMessage="No archived classes."
+                            />
+                        </TabsContent>
+                        <TabsContent value="requests">
+                            <ClassRequestsCard
+                                requests={[...requests.data].sort(
+                                    (a, b) =>
+                                        (a.createdAt?.toMillis() ?? 0) -
+                                        (b.createdAt?.toMillis() ?? 0),
+                                )}
+                                usersById={usersById}
+                            />
+                        </TabsContent>
+                    </>
+                )}
+            </Tabs>
 
             {dialog?.type === 'form' && (
                 <ClassFormDialog

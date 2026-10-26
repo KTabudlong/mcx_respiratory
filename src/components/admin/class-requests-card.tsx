@@ -24,7 +24,11 @@ export function ClassRequestsCard({
     const [action, setAction] = useState<Action>(null);
 
     if (requests.length === 0) {
-        return null;
+        return (
+            <p className="rounded-md border py-8 text-center text-sm text-muted-foreground">
+                No class requests waiting.
+            </p>
+        );
     }
 
     function nameOf(userId: string) {

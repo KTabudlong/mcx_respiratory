@@ -26,9 +26,9 @@
 
 ## Short-term checklist
 
-**Planning last reviewed:** 2026-10-21
+**Planning last reviewed:** 2026-10-22
 
-**Current milestone:** Manual testing on the **test project** (sections 0–7 of the 2026-10-21 run pass; 8–9 tested with feedback, now fixed; 10–11 left). 2026-10-21 changes need re-checking, and their rules go to production with the `dev` → `main` merge. Then Phase 6.
+**Current milestone:** Manual testing on the **test project** (sections 0–7 of the 2026-10-21 run pass; 8–9 tested with feedback, now fixed; section 10 step 1 done 2026-10-22, rest of 10 + 11 left). 2026-10-21 changes need re-checking, and their rules go to production with the `dev` → `main` merge. Then Phase 6.
 
 ### Planning — data model + UI ✅ 2026-10-08
 
@@ -203,8 +203,15 @@
 - [x] Deploy 2026-10-21 rules to the **test** project
 - [ ] **Deploy 2026-10-21 rules to production together with the `dev` → `main` merge** (see Blocked / waiting)
 - [ ] (User) Re-check 2026-10-21 changes: sign up with no class; sidebar stays collapsed after reload; toasts on invite / decline / approve etc.; admin account menu + log out → login as another user lands on their home; search finds words in post text; edit a post twice → history dialog lists both with what changed; delete a comment with no replies → "[deleted]" stays, moderator restores it; comment Sort by Score / Date + direction
-- [ ] (User) Finish the 2026-10-21 test run: section 10 (admin panel: overview, moderation, email / text) and 11 (archive)
-- [ ] Open question: "Comments (5)" while 4 visible on one post — not reproduced; re-check after tombstones
+- [ ] (User) Finish the 2026-10-21 test run: section 10 (admin panel: overview, moderation, email / text) and 11 (archive). **2026-10-22:** step 1 (super admin overview) done; continue at step 2 (Class A overview)
+- [x] Open question: "Comments (5)" while 4 visible on one post — resolved by tombstones (deleted comments stay as "[deleted]"), user confirmed 2026-10-22
+
+### Decided + built 2026-10-22 (section 10 feedback)
+
+- [x] Dashboard cards open their page pre-filtered: Active / Deactivated users → All users `?status=…`; Pending join requests → Classes; class overview Posts / Deleted posts → Moderation `?status=live|deleted`. Filters and tabs live in the URL (survive reload / Back)
+- [x] "Active users" card now counts with the same rule as the Active filter (in a class or super admin), live from users + memberships instead of a `count()`
+- [x] Classes page tabs: **Active** (new "Join requests" column → that class's Students page) / **Archived** / **Requests** (class requests); class-requests banner opens the Requests tab
+- [ ] (User) Re-check: each overview card / banner lands on the right filter or tab; Active users number = Active list length; Classes tabs survive a reload
 
 ### Phase 6 — Polish + launch (days 23–25)
 
@@ -250,3 +257,4 @@ User decisions: gallery (not inline) photos, max 3 per post; quotes + divider, n
 - **2026-10-08** — Designed (not built): super admin → class → ranked class roles; class officers get their own admin panel; join requests at sign-up; `createdBy`/`addedBy` audit fields; classmates see phones. Roles editor moves from Phase 5 into Phase 2b.
 - **2026-10-19** — Manual testing started. Built + deployed: role-change confirm, rank tooltip, invites for existing accounts (accept / decline), in-app notifications for class changes, email-update consent, `/profile` page. Agreed: super admin can edit name + phone with a change log (not built); consent stays student-only.
 - **2026-10-21** — Test Firebase project + Mailtrap for fake accounts; TEST badge. Testing feedback built: optional class at sign-up, saved sidebar state, toasts everywhere, admin account menu, clean logout redirect, text search, post edit history (rules-enforced), Reddit-style "[deleted]" comments, comment sort by score / date + direction. New rules on the test project only until the merge.
+- **2026-10-22** — Section 10 testing started. Dashboard cards open pre-filtered pages (filters / tabs in the URL); Classes page split into Active / Archived / Requests tabs with a join-requests column.

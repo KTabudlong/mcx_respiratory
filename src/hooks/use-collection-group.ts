@@ -75,6 +75,11 @@ export function useJoinRequestsOf(uid: string | null) {
     return useGroupQuery<JoinRequest>('joinRequests', uid);
 }
 
+// Every class's pending join requests (super admins only). Pass false to skip.
+export function useAllJoinRequests(enabled: boolean) {
+    return useGroupQuery<JoinRequest>('joinRequests', enabled ? ALL : null);
+}
+
 // Class invites sent to this school email (the signed-in user's own).
 export function useInvitesFor(email: string | null) {
     return useGroupQuery<ClassInvite>(

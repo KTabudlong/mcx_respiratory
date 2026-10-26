@@ -60,14 +60,18 @@ export default function AdminClassIndex() {
                     label="Posts"
                     value={stats?.posts ?? null}
                     icon={FileText}
-                    to={canModerate ? `${base}/moderation` : undefined}
+                    to={
+                        canModerate
+                            ? `${base}/moderation?status=live`
+                            : undefined
+                    }
                 />
                 {canSeeDeleted && (
                     <StatCard
                         label="Deleted posts"
                         value={stats?.deletedPosts ?? null}
                         icon={FileX}
-                        to={`${base}/moderation`}
+                        to={`${base}/moderation?status=deleted`}
                     />
                 )}
             </div>

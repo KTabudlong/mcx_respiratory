@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useParams } from 'react-router';
+import { useParams, useSearchParams } from 'react-router';
 import { toast } from 'sonner';
 
 import { ClassPageHeader } from '@/components/admin/class-page-header';
@@ -22,6 +22,7 @@ import { useModerationPosts } from '@/hooks/use-posts';
 import { useUsersById } from '@/hooks/use-users-by-id';
 import { getErrorMessage } from '@/lib/errors';
 import { restorePost, softDeletePost } from '@/lib/posts';
+import { pickParam } from '@/lib/search-params';
 import type { Post } from '@/types';
 
 type StatusFilter = 'all' | 'live' | 'deleted';
@@ -31,10 +32,11 @@ const FILTERS: { value: StatusFilter; label: string }[] = [
     { value: 'live', label: 'Live' },
     { value: 'deleted', label: 'Deleted' },
 ];
+const FILTER_VALUES = FILTERS.map((item) => item.value);
 
 // /admin/classes/:classId/moderation — posts.delete_any or
 // comments.delete_any (guarded in the router). Deleted items stay here so
-// they can be restored.
+// they can be restored. The filter lives in the URL (`?status=deleted`).
 export default function ClassModeration() {
     const { classId = '' } = useParams();
     const { canIn } = useAuth();
@@ -42,9 +44,10 @@ export default function ClassModeration() {
     const canComments = canIn(classId, 'comments.delete_any');
     const { posts, loading, error } = useModerationPosts(classId, canPosts);
     const authors = useUsersById(posts.map((post) => post.userId));
-    const [filter, setFilter] = useState<StatusFilter>(
-        canPosts ? 'all' : 'live',
-    );
+    const [searchParams, setSearchParams] = useSearchParams();
+    const filter = canPosts
+        ? pickParam(searchParams.get('status'), FILTER_VALUES, 'all')
+        : 'live';
     const [search, setSearch] = useState('');
     const [openId, setOpenId] = useState('');
     const [deleting, setDeleting] = useState<Post | null>(null);
@@ -101,7 +104,14 @@ export default function ClassModeration() {
                                         : 'ghost'
                                 }
                                 aria-pressed={filter === item.value}
-                                onClick={() => setFilter(item.value)}
+                                onClick={() =>
+                                    setSearchParams(
+                                        item.value === 'all'
+                                            ? {}
+                                            : { status: item.value },
+                                        { replace: true },
+                                    )
+                                }
                             >
                                 {item.label}
                             </Button>

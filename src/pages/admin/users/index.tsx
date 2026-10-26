@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useSearchParams } from 'react-router';
 
 import { UsersTable } from '@/components/admin/users-table';
 import { ConfirmDialog } from '@/components/common/confirm-dialog';
@@ -13,6 +14,7 @@ import type { UserStatus } from '@/lib/account-status';
 import { getUserStatus } from '@/lib/account-status';
 import { setUserDeactivated } from '@/lib/admin-users';
 import { getErrorMessage } from '@/lib/errors';
+import { pickParam } from '@/lib/search-params';
 import { filterUsers } from '@/lib/user-filters';
 import type {
     ClassGroup,
@@ -27,6 +29,7 @@ const STATUS_FILTERS: { value: UserStatus | 'all'; label: string }[] = [
     { value: 'active', label: 'Active' },
     { value: 'deactivated', label: 'Deactivated' },
 ];
+const STATUS_VALUES = STATUS_FILTERS.map((filter) => filter.value);
 
 function groupByUser(memberships: ClassMember[]) {
     const byUser = new Map<string, ClassMember[]>();
@@ -43,7 +46,8 @@ function groupByUser(memberships: ClassMember[]) {
 
 // Super admin only (guarded in the router). Adding people and approving join
 // requests happen per class; this page is for finding anyone and
-// deactivating accounts app-wide.
+// deactivating accounts app-wide. The status filter lives in the URL
+// (`?status=deactivated`) so dashboard cards can open it directly.
 export default function AdminUsers() {
     const { user: me } = useAuth();
     const users = useCollection<UserProfile>('users');
@@ -52,7 +56,8 @@ export default function AdminUsers() {
     const contacts = useCollection<UserContact>('userContacts');
     const classes = useCollection<ClassGroup>('classes');
     const [search, setSearch] = useState('');
-    const [status, setStatus] = useState<UserStatus | 'all'>('all');
+    const [searchParams, setSearchParams] = useSearchParams();
+    const status = pickParam(searchParams.get('status'), STATUS_VALUES, 'all');
     const [toggling, setToggling] = useState<UserProfile | null>(null);
 
     const loading =
@@ -113,7 +118,14 @@ export default function AdminUsers() {
                                 status === filter.value ? 'secondary' : 'ghost'
                             }
                             aria-pressed={status === filter.value}
-                            onClick={() => setStatus(filter.value)}
+                            onClick={() =>
+                                setSearchParams(
+                                    filter.value === 'all'
+                                        ? {}
+                                        : { status: filter.value },
+                                    { replace: true },
+                                )
+                            }
                         >
                             {filter.label}
                         </Button>

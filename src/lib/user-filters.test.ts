@@ -2,7 +2,7 @@ import type { Timestamp } from 'firebase/firestore';
 import { describe, expect, it } from 'vitest';
 
 import type { UserFilters } from '@/lib/user-filters';
-import { filterUsers, matchesName } from '@/lib/user-filters';
+import { countByStatus, filterUsers, matchesName } from '@/lib/user-filters';
 import type { UserProfile } from '@/types';
 
 function makeUser(overrides: Partial<UserProfile>): UserProfile {
@@ -71,5 +71,15 @@ describe('filterUsers', () => {
         expect(ids({ search: '', status: 'pending' })).toEqual(['b']);
         expect(ids({ search: '', status: 'deactivated' })).toEqual(['c']);
         expect(ids({ search: '', status: 'active' })).toEqual(['a', 'd']);
+    });
+});
+
+describe('countByStatus', () => {
+    it('counts the same statuses the filter uses', () => {
+        expect(countByStatus(users, classCounts, superAdminIds)).toEqual({
+            active: 2,
+            pending: 1,
+            deactivated: 1,
+        });
     });
 });

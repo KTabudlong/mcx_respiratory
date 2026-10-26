@@ -9,6 +9,7 @@ import { useAuth } from '@/hooks/use-auth';
 import { useCollection } from '@/hooks/use-collection';
 import { useDocuments } from '@/hooks/use-documents';
 import { useSiteStats } from '@/hooks/use-stats';
+import { useUserStatusCounts } from '@/hooks/use-user-status-counts';
 import { sortClasses } from '@/lib/classes';
 import { getErrorMessage } from '@/lib/errors';
 import type { ClassGroup, ClassRequest } from '@/types';
@@ -18,6 +19,7 @@ import type { ClassGroup, ClassRequest } from '@/types';
 export default function AdminIndex() {
     const { isSuperAdmin, adminClassIds } = useAuth();
     const site = useSiteStats(isSuperAdmin);
+    const userCounts = useUserStatusCounts(isSuperAdmin);
     const classRequests = useCollection<ClassRequest>(
         isSuperAdmin ? 'classRequests' : null,
     );
@@ -42,6 +44,7 @@ export default function AdminIndex() {
     }
 
     const stats = site.stats;
+    const statsError = site.error ?? userCounts.error;
 
     return (
         <div className="grid gap-6">
@@ -57,11 +60,11 @@ export default function AdminIndex() {
             {isSuperAdmin && (
                 <section aria-label="Site numbers" className="grid gap-3">
                     <FormMessage
-                        message={site.error ? getErrorMessage(site.error) : ''}
+                        message={statsError ? getErrorMessage(statsError) : ''}
                     />
                     {classRequests.data.length > 0 && (
                         <Link
-                            to="/admin/classes"
+                            to="/admin/classes?tab=requests"
                             className="flex items-center gap-2 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm font-medium text-amber-900 hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100 dark:hover:bg-amber-900"
                         >
                             <School aria-hidden className="size-4 shrink-0" />
@@ -79,20 +82,21 @@ export default function AdminIndex() {
                         />
                         <StatCard
                             label="Active users"
-                            value={stats?.activeUsers ?? null}
+                            value={userCounts.counts?.active ?? null}
                             icon={UserCheck}
-                            to="/admin/users"
+                            to="/admin/users?status=active"
                         />
                         <StatCard
                             label="Deactivated users"
-                            value={stats?.deactivatedUsers ?? null}
+                            value={userCounts.counts?.deactivated ?? null}
                             icon={UserX}
-                            to="/admin/users"
+                            to="/admin/users?status=deactivated"
                         />
                         <StatCard
                             label="Pending join requests"
                             value={stats?.joinRequests ?? null}
                             icon={Inbox}
+                            to="/admin/classes"
                         />
                     </div>
                 </section>

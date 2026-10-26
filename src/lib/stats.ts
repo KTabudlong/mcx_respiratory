@@ -47,29 +47,20 @@ export async function fetchClassStats(
 
 export type SiteStats = {
     openClasses: number;
-    activeUsers: number;
-    deactivatedUsers: number;
     joinRequests: number;
 };
 
-// Super admins only (the rules allow listing users and every class's join
-// requests just for them).
+// Super admins only (the rules allow listing every class's join requests
+// just for them). User counts come from useUserStatusCounts.
 export async function fetchSiteStats(): Promise<SiteStats> {
-    const users = collection(db, 'users');
-    const [openClasses, activeUsers, deactivatedUsers, joinRequests] =
-        await Promise.all([
-            count(
-                query(
-                    collection(db, 'classes'),
-                    where('archivedAt', '==', null),
-                ),
-            ),
-            count(query(users, where('deletedAt', '==', null))),
-            count(query(users, where('deletedAt', '!=', null))),
-            count(collectionGroup(db, 'joinRequests')),
-        ]);
+    const [openClasses, joinRequests] = await Promise.all([
+        count(
+            query(collection(db, 'classes'), where('archivedAt', '==', null)),
+        ),
+        count(collectionGroup(db, 'joinRequests')),
+    ]);
 
-    return { openClasses, activeUsers, deactivatedUsers, joinRequests };
+    return { openClasses, joinRequests };
 }
 
 export type UserActivity = { posts: number; comments: number };

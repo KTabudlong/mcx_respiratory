@@ -32,6 +32,31 @@ export function compareByName(a: Named, b: Named) {
     );
 }
 
+// Same statuses as the users table filter, so dashboard numbers match it.
+export function countByStatus(
+    users: UserProfile[],
+    classCountByUser: Map<string, number>,
+    superAdminIds: Set<string>,
+) {
+    const counts: Record<UserStatus, number> = {
+        active: 0,
+        pending: 0,
+        deactivated: 0,
+    };
+
+    for (const user of users) {
+        counts[
+            getUserStatus(
+                user,
+                classCountByUser.get(user.id) ?? 0,
+                superAdminIds.has(user.id),
+            )
+        ] += 1;
+    }
+
+    return counts;
+}
+
 // classCountByUser: number of class memberships per uid.
 export function filterUsers(
     users: UserProfile[],

@@ -75,9 +75,15 @@
 
 ## Continuity (rolling — agent updates on end session)
 
-**Last updated:** 2026-10-21
+**Last updated:** 2026-10-26
 
 ### Last session
+
+**2026-10-22 (session 7, short — 52m) — section 10 testing started**
+
+- **Tested:** section 10 step 1 (super admin overview): numbers, banner, class list OK. "Comments (5)" question closed (tombstones fixed it).
+- **Built from feedback (checks green, 94 tests; no rules changes):** dashboard cards open their page pre-filtered — filters / tabs now live in the URL via `useSearchParams` + `pickParam` (`src/lib/search-params.ts`): All users `?status=`, Moderation `?status=`, Classes `?tab=active|archived|requests`. Classes page split into **Active / Archived / Requests** tabs (shadcn `tabs` added; `ClassesTable` component; Active has a "Join requests" column from the new `useAllJoinRequests` hook). "Active users" card now uses `countByStatus` (same rule as the filter) via `useUserStatusCounts` instead of a `count()`, so it no longer includes people not in a class.
+- **Not yet re-checked by the user.** Session stopped at the lunch break.
 
 **2026-10-21 (session 6) — test project + Mailtrap; testing feedback fixes**
 
@@ -85,7 +91,7 @@
 - **User test results:** sections 0–7 of the 2026-10-21 run pass; 8–9 tested (feedback below, now built); 10–11 not yet.
 - **Built (checks green, 91 tests):** optional class at sign-up ("Join a class" on `/pending`); admin sidebar state in `localStorage`; sonner toasts everywhere (`ConfirmDialog.successMessage` is required); admin header bell + shared `UserMenu`; `useLogOut()` → clean `/login`; feed search matches post text; **post edit history** (`editCount` + `edits/{n}`, rules-enforced, dialog from "edited by"); **comment tombstones** (`body: ''` + `archive/body`, "[deleted]" always shown, moderators see / restore the text); **comment sort** dropdown Score / Date + asc / desc.
 - **Rules:** the 2026-10-21 rules are on the **test project only** — they break post editing / comment deleting on the older live site, so deploy them to production **with** the `dev` → `main` merge (ROADMAP § Blocked).
-- **Open:** "Comments (5)" while 4 visible on one post, not reproduced — re-check with tombstones. Auto-review requires the user's approval for each rules deploy (even to the test project).
+- Auto-review requires the user's approval for each rules deploy (even to the test project).
 
 **2026-10-19 (session 5) — manual testing started; invites, notifications, email consent, profile**
 
@@ -101,7 +107,7 @@
 
 ### Resume here
 
-1. **User (test project, `npm run dev`):** re-check the 2026-10-21 changes (ROADMAP § "Decided + built 2026-10-21"), then finish sections 10 (admin panel) and 11 (archive) of the test run. Fix what breaks.
+1. **User (test project, `npm run dev`), one step at a time:** re-check the 2026-10-22 changes (ROADMAP § "Decided + built 2026-10-22"), then continue section 10 at **step 2 — Class A overview** (cards + links, breadcrumbs incl. phone width, Open board), then sidebar persistence, moderation, `comments.delete_any`-only role, email / text, user page; then section 11 (archive). The full section 10–11 checklist is in the 2026-10-21 chat ([Test project and feedback fixes](be64807d-4e1e-485a-9864-7b5cb0dd332d)). Also still to re-check: the 2026-10-21 changes. Fix what breaks.
 2. **Merge day:** user commits on `dev` and merges `dev` → `main`; agent deploys rules + indexes to production in the same step (`npx -y firebase-tools@latest deploy --only firestore --project default`, needs the user's approval).
 3. Next build candidates: super admin name/phone edit + change log; email delivery decision (EmailJS vs `mailto:`).
 4. Optional: backfill `score: 0` on pre-vote posts so **Top** includes them.

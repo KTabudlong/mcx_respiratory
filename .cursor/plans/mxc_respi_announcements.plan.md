@@ -300,8 +300,8 @@ Two levels (decided 2026-10-08). Class managers see a **class switcher** listing
 | `/admin/classes/:classId/students` | `students.view` / `students.manage` | Class roster with search by first/last name, phone, role; join requests (approve/reject); add student (existing user or new account); change role; remove from class |
 | `/admin/classes/:classId/roles` | `roles.manage` | This class's roles: name, color, rank, permission checkboxes (only roles ranked below yours) |
 | `/admin/classes/:classId/posts` | `posts.delete_any` / `comments.delete_any` | Moderation tables incl. soft-deleted items; restore |
-| `/admin/classes` | super admin | All classes: create (with the default Student role), edit, archive, member counts |
-| `/admin/users` | super admin | All users: search, deactivate/restore, `createdBy`, which classes they're in |
+| `/admin/classes` | super admin | All classes: create (with the default Student role), edit, archive, member counts. Tabs **Active** (with each class's waiting join requests) / **Archived** / **Requests** (class requests), kept in the URL as `?tab=` (2026-10-22) |
+| `/admin/users` | super admin | All users: search, deactivate/restore, `createdBy`, which classes they're in. Status filter in the URL (`?status=active` etc.) so dashboard cards open it pre-filtered; Moderation does the same (2026-10-22) |
 | `/admin/admins` | super admin | Super admins list (later; first one by hand) |
 
 ### Other routes
