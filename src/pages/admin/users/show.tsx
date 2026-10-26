@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useParams } from 'react-router';
 
+import { PendingReasons } from '@/components/admin/pending-reasons';
 import { UserActivityCard } from '@/components/admin/user-activity-card';
 import { UserClassesCard } from '@/components/admin/user-classes-card';
 import { UserProfileCard } from '@/components/admin/user-profile-card';
@@ -12,6 +13,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/use-auth';
 import {
+    useInvitesFor,
     useJoinRequestsOf,
     useMembershipsOf,
     useRecentPostsBy,
@@ -22,7 +24,14 @@ import { useUserActivity } from '@/hooks/use-stats';
 import { getUserStatus } from '@/lib/account-status';
 import { makeSuperAdmin, removeSuperAdmin } from '@/lib/admins';
 import { getErrorMessage } from '@/lib/errors';
-import type { ClassGroup, ClassRole, UserContact, UserProfile } from '@/types';
+import { pendingReasons } from '@/lib/pending-reasons';
+import type {
+    ClassGroup,
+    ClassRequest,
+    ClassRole,
+    UserContact,
+    UserProfile,
+} from '@/types';
 
 const RECENT_POSTS = 10;
 
@@ -39,12 +48,15 @@ export default function AdminUserShow() {
     );
     const memberships = useMembershipsOf(userId);
     const requests = useJoinRequestsOf(userId);
+    const invites = useInvitesFor(user.data?.email ?? null);
+    const classRequest = useDocument<ClassRequest>(`classRequests/${userId}`);
     const posts = useRecentPostsBy(userId, RECENT_POSTS);
     const activity = useUserActivity(userId);
 
     const classIds = new Set([
         ...memberships.data.map((membership) => membership.classId),
         ...requests.data.map((request) => request.classId),
+        ...invites.data.map((invite) => invite.classId),
         ...posts.data.map((post) => post.classId),
         ...(user.data?.createdInClassId ? [user.data.createdInClassId] : []),
     ]);
@@ -65,6 +77,8 @@ export default function AdminUserShow() {
         contact.error ??
         memberships.error ??
         requests.error ??
+        invites.error ??
+        classRequest.error ??
         null;
 
     if (user.loading || admin.loading) {
@@ -102,6 +116,22 @@ export default function AdminUserShow() {
                     <p className="text-sm break-all text-muted-foreground">
                         {user.data.email}
                     </p>
+                    {status === 'pending' && (
+                        <div className="mt-2">
+                            <PendingReasons
+                                reasons={
+                                    pendingReasons([user.data], {
+                                        joinRequests: requests.data,
+                                        invites: invites.data,
+                                        classRequests: classRequest.data
+                                            ? [classRequest.data]
+                                            : [],
+                                        classes: classes.data,
+                                    }).get(userId) ?? []
+                                }
+                            />
+                        </div>
+                    )}
                 </div>
                 {canToggleAdmin && (
                     <Button

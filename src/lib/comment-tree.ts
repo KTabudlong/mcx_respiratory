@@ -8,11 +8,13 @@ export const DEFAULT_COMMENT_SORT: CommentSort = { by: 'score', dir: 'desc' };
 
 // A node is a live comment, or a "[deleted]" placeholder (comment: null):
 // a tombstone, or an older deleted comment that's simply missing, kept so
-// its replies stay in place. `sortBy` is null when nothing is known about
-// it (those sort last).
+// its replies stay in place. `tombstone` is the deleted comment's doc when
+// it's a tombstone (moderators restore it). `sortBy` is null when nothing is
+// known about it (those sort last).
 export type CommentNode = {
     id: string;
     comment: Comment | null;
+    tombstone: Comment | null;
     sortBy: { score: number; createdAt: number } | null;
     children: CommentNode[];
 };
@@ -76,6 +78,7 @@ export function buildCommentTree(
             node = {
                 id,
                 comment: known?.live ? known.comment : null,
+                tombstone: known && !known.live ? known.comment : null,
                 sortBy: known ? sortKey(known.comment) : null,
                 children: [],
             };

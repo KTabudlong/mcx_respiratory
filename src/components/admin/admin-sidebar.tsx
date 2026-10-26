@@ -27,12 +27,15 @@ import { useAuth } from '@/hooks/use-auth';
 import { useCollection } from '@/hooks/use-collection';
 import { useLogOut } from '@/hooks/use-log-out';
 import type { Permission } from '@/lib/permissions';
+import { MODERATION_PERMISSIONS } from '@/lib/permissions';
 import type { ClassGroup } from '@/types';
 
 type NavItem = {
     to: string;
     label: string;
     icon: typeof Users;
+    // Also highlighted on pages below it (e.g. a post edited from Moderation).
+    nested?: boolean;
 };
 
 // Pages inside one class, shown when the user's role there allows them.
@@ -56,14 +59,14 @@ export const CLASS_NAV: (Omit<NavItem, 'to'> & {
         path: 'moderation',
         label: 'Moderation',
         icon: ShieldAlert,
-        anyOf: ['posts.delete_any', 'comments.delete_any'],
+        anyOf: MODERATION_PERMISSIONS,
     },
 ];
 
 const SUPER_ADMIN_NAV: NavItem[] = [
     { to: '/admin', label: 'Overview', icon: LayoutDashboard },
     { to: '/admin/classes', label: 'All classes', icon: GraduationCap },
-    { to: '/admin/users', label: 'All users', icon: UserCog },
+    { to: '/admin/users', label: 'All users', icon: UserCog, nested: true },
 ];
 
 function NavList({ items }: { items: NavItem[] }) {
@@ -74,10 +77,17 @@ function NavList({ items }: { items: NavItem[] }) {
         <SidebarMenu>
             {items.map((item) => (
                 <SidebarMenuItem key={item.to}>
-                    <SidebarMenuButton asChild isActive={pathname === item.to}>
+                    <SidebarMenuButton
+                        asChild
+                        isActive={
+                            pathname === item.to ||
+                            (item.nested === true &&
+                                pathname.startsWith(`${item.to}/`))
+                        }
+                    >
                         <NavLink
                             to={item.to}
-                            end
+                            end={!item.nested}
                             onClick={() => setOpenMobile(false)}
                         >
                             <item.icon aria-hidden />
@@ -114,6 +124,7 @@ export function AdminSidebar() {
                   to: `/admin/classes/${classId}/${item.path}`,
                   label: item.label,
                   icon: item.icon,
+                  nested: true,
               })),
           ]
         : [];

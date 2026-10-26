@@ -8,6 +8,7 @@ import { FormMessage } from '@/components/common/form-message';
 import { useAuth } from '@/hooks/use-auth';
 import { useClassStats } from '@/hooks/use-stats';
 import { getErrorMessage } from '@/lib/errors';
+import { MODERATION_PERMISSIONS } from '@/lib/permissions';
 
 // /admin/classes/:classId — the class dashboard. Each number links to the
 // page behind it when the viewer's role can open that page.
@@ -17,9 +18,9 @@ export default function AdminClassIndex() {
     const canSeeRoster =
         canIn(classId, 'students.view') || canIn(classId, 'students.manage');
     const canManageStudents = canIn(classId, 'students.manage');
-    const canModerate =
-        canIn(classId, 'posts.delete_any') ||
-        canIn(classId, 'comments.delete_any');
+    const canModerate = MODERATION_PERMISSIONS.some((permission) =>
+        canIn(classId, permission),
+    );
     const canSeeDeleted = canIn(classId, 'posts.delete_any');
     const { stats, error } = useClassStats(
         classId,

@@ -5,7 +5,7 @@ import { useAuth } from '@/hooks/use-auth';
 import { useDocument } from '@/hooks/use-document';
 import { adminCrumbs } from '@/lib/breadcrumbs';
 import { cn } from '@/lib/utils';
-import type { ClassGroup, UserProfile } from '@/types';
+import type { ClassGroup, Post, UserProfile } from '@/types';
 
 // Admin › Classes › <class> › Students. The last crumb is the current page.
 export function AdminBreadcrumbs() {
@@ -17,8 +17,17 @@ export function AdminBreadcrumbs() {
         classId ? `classes/${classId}` : null,
     );
     const user = useDocument<UserProfile>(userId ? `users/${userId}` : null);
+    const postId = useMatch('/admin/classes/:classId/moderation/:postId')
+        ?.params.postId;
+    const post = useDocument<Post>(
+        classId && postId ? `classes/${classId}/posts/${postId}` : null,
+    );
 
     const names: Record<string, string> = {};
+
+    if (postId && post.data) {
+        names[postId] = post.data.title;
+    }
 
     if (classId && classGroup.data) {
         names[classId] = classGroup.data.name;

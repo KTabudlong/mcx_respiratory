@@ -5,6 +5,7 @@ import { useParams } from 'react-router';
 import { ClassPageHeader } from '@/components/admin/class-page-header';
 import { RoleBadge } from '@/components/admin/role-badge';
 import { RoleFormDialog } from '@/components/admin/role-form-dialog';
+import { DeleteButton } from '@/components/common/action-buttons';
 import { ConfirmDialog } from '@/components/common/confirm-dialog';
 import { FormMessage } from '@/components/common/form-message';
 import { PageLoader } from '@/components/common/page-loader';
@@ -170,24 +171,24 @@ export default function ClassRoles() {
                                                     >
                                                         Edit
                                                     </Button>
-                                                    <Button
-                                                        size="sm"
-                                                        variant="outline"
-                                                        disabled={count > 0}
+                                                    <span
                                                         title={
                                                             count > 0
                                                                 ? 'Move its members to another role first'
                                                                 : undefined
                                                         }
-                                                        onClick={() =>
-                                                            setDialog({
-                                                                type: 'delete',
-                                                                role,
-                                                            })
-                                                        }
                                                     >
-                                                        Delete
-                                                    </Button>
+                                                        <DeleteButton
+                                                            label={`Delete ${role.name}`}
+                                                            disabled={count > 0}
+                                                            onClick={() =>
+                                                                setDialog({
+                                                                    type: 'delete',
+                                                                    role,
+                                                                })
+                                                            }
+                                                        />
+                                                    </span>
                                                 </div>
                                             ) : (
                                                 <span className="text-xs text-muted-foreground">

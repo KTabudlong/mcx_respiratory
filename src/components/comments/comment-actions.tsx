@@ -1,3 +1,4 @@
+import { DeleteButton } from '@/components/common/action-buttons';
 import { Button } from '@/components/ui/button';
 
 // Reply / Edit / Delete under a comment; only the allowed ones show.
@@ -43,14 +44,11 @@ export function CommentActions({
                 </Button>
             )}
             {canDelete && (
-                <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-7 px-2 text-xs text-destructive hover:text-destructive"
+                <DeleteButton
+                    size="icon-xs"
+                    label="Delete comment"
                     onClick={onDelete}
-                >
-                    Delete
-                </Button>
+                />
             )}
         </div>
     );

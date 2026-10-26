@@ -77,6 +77,8 @@ describe('buildCommentTree', () => {
             ['[b]', []],
             ['c', []],
         ]);
+        expect(tree[1].tombstone?.id).toBe('b');
+        expect(tree[0].tombstone).toBeNull();
     });
 
     const scored = [

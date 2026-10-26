@@ -1,7 +1,18 @@
-import { ChevronDown, ChevronRight, ExternalLink } from 'lucide-react';
-import { Link } from 'react-router';
+import {
+    ChevronDown,
+    ChevronRight,
+    ExternalLink,
+    Pencil,
+    Pin,
+    PinOff,
+} from 'lucide-react';
+import { Link, useLocation } from 'react-router';
 
 import { ModerationComments } from '@/components/admin/moderation-comments';
+import {
+    DeleteButton,
+    RestoreButton,
+} from '@/components/common/action-buttons';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { TableCell, TableRow } from '@/components/ui/table';
@@ -13,21 +24,32 @@ export function ModerationPostRow({
     post,
     author,
     open,
+    matchIds,
     canPosts,
     canComments,
+    canEdit,
+    canPin,
     onToggle,
     onDelete,
     onRestore,
+    onTogglePin,
 }: {
     post: Post;
     author: UserProfile | undefined;
     open: boolean;
+    // Comments matching the search (highlighted when open).
+    matchIds?: Set<string>;
+    // canPosts = delete / restore posts; canEdit / canPin are per post.
     canPosts: boolean;
     canComments: boolean;
+    canEdit: boolean;
+    canPin: boolean;
     onToggle: () => void;
     onDelete: () => void;
     onRestore: () => void;
+    onTogglePin: () => void;
 }) {
+    const location = useLocation();
     const deleted = post.deletedAt !== null;
 
     return (
@@ -57,6 +79,16 @@ export function ModerationPostRow({
                         {post.pinned && (
                             <Badge variant="secondary">Pinned</Badge>
                         )}
+                        {matchIds && (
+                            <Badge
+                                variant="outline"
+                                className="border-amber-400 text-amber-700 dark:text-amber-300"
+                            >
+                                {matchIds.size === 1
+                                    ? '1 comment matches'
+                                    : `${matchIds.size} comments match`}
+                            </Badge>
+                        )}
                     </div>
                 </TableCell>
                 <TableCell className="whitespace-nowrap">
@@ -85,23 +117,51 @@ export function ModerationPostRow({
                             </Link>
                         </Button>
                     )}
+                    {!deleted && canEdit && (
+                        <Button
+                            asChild
+                            size="icon-sm"
+                            variant="ghost"
+                            title="Edit post"
+                        >
+                            <Link
+                                to={`/admin/classes/${post.classId}/moderation/${post.id}`}
+                                state={{
+                                    from: `${location.pathname}${location.search}`,
+                                }}
+                                aria-label={`Edit “${post.title}”`}
+                            >
+                                <Pencil aria-hidden />
+                            </Link>
+                        </Button>
+                    )}
+                    {!deleted && canPin && (
+                        <Button
+                            size="icon-sm"
+                            variant="ghost"
+                            title={post.pinned ? 'Unpin' : 'Pin to top'}
+                            aria-label={post.pinned ? 'Unpin' : 'Pin to top'}
+                            aria-pressed={post.pinned}
+                            onClick={onTogglePin}
+                        >
+                            {post.pinned ? (
+                                <PinOff aria-hidden />
+                            ) : (
+                                <Pin aria-hidden />
+                            )}
+                        </Button>
+                    )}
                     {canPosts &&
                         (deleted ? (
-                            <Button
-                                size="sm"
-                                variant="outline"
+                            <RestoreButton
+                                label="Restore post"
                                 onClick={onRestore}
-                            >
-                                Restore
-                            </Button>
+                            />
                         ) : (
-                            <Button
-                                size="sm"
-                                variant="ghost"
+                            <DeleteButton
+                                label="Delete post"
                                 onClick={onDelete}
-                            >
-                                Delete
-                            </Button>
+                            />
                         ))}
                 </TableCell>
             </TableRow>
@@ -111,7 +171,10 @@ export function ModerationPostRow({
                         colSpan={5}
                         className="bg-muted/40 whitespace-normal"
                     >
-                        <ModerationComments post={post} />
+                        <ModerationComments
+                            post={post}
+                            highlightIds={matchIds}
+                        />
                     </TableCell>
                 </TableRow>
             )}

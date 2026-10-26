@@ -1,6 +1,8 @@
 import { Link } from 'react-router';
 
+import { PendingReasons } from '@/components/admin/pending-reasons';
 import { UserStatusBadge } from '@/components/admin/user-status-badge';
+import { RestoreButton } from '@/components/common/action-buttons';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -29,6 +31,7 @@ export function UsersTable({
     superAdminIds,
     contacts,
     classes,
+    pendingReasonsByUser,
     currentUserId,
     emptyMessage,
     onToggleActive,
@@ -39,6 +42,7 @@ export function UsersTable({
     superAdminIds: Set<string>;
     contacts: UserContact[];
     classes: ClassGroup[];
+    pendingReasonsByUser: Map<string, string[]>;
     currentUserId: string | undefined;
     emptyMessage: string;
     onToggleActive: (user: UserProfile) => void;
@@ -145,20 +149,39 @@ export function UsersTable({
                                           : 'Unknown'}
                                 </TableCell>
                                 <TableCell>
-                                    <UserStatusBadge status={status} />
+                                    <div className="grid max-w-56 gap-1">
+                                        <UserStatusBadge status={status} />
+                                        {status === 'pending' && (
+                                            <PendingReasons
+                                                reasons={
+                                                    pendingReasonsByUser.get(
+                                                        user.id,
+                                                    ) ?? []
+                                                }
+                                            />
+                                        )}
+                                    </div>
                                 </TableCell>
                                 <TableCell className="text-right whitespace-nowrap">
-                                    {!isMe && (
-                                        <Button
-                                            size="sm"
-                                            variant="ghost"
-                                            onClick={() => onToggleActive(user)}
-                                        >
-                                            {status === 'deactivated'
-                                                ? 'Restore'
-                                                : 'Deactivate'}
-                                        </Button>
-                                    )}
+                                    {!isMe &&
+                                        (status === 'deactivated' ? (
+                                            <RestoreButton
+                                                label="Restore account"
+                                                onClick={() =>
+                                                    onToggleActive(user)
+                                                }
+                                            />
+                                        ) : (
+                                            <Button
+                                                size="sm"
+                                                variant="ghost"
+                                                onClick={() =>
+                                                    onToggleActive(user)
+                                                }
+                                            >
+                                                Deactivate
+                                            </Button>
+                                        ))}
                                 </TableCell>
                             </TableRow>
                         );

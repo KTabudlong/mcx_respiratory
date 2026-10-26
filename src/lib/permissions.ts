@@ -29,6 +29,15 @@ export const PERMISSIONS = [
 
 export type Permission = (typeof PERMISSIONS)[number]['key'];
 
+// Any of these opens the class's Moderation (posts) page; each row then
+// offers only the actions the role has.
+export const MODERATION_PERMISSIONS: Permission[] = [
+    'posts.delete_any',
+    'posts.edit_any',
+    'posts.pin',
+    'comments.delete_any',
+];
+
 // The rules' rank checks treat super admins as outranking everything.
 export const SUPER_ADMIN_RANK = Number.POSITIVE_INFINITY;
 
@@ -130,4 +139,9 @@ export function commentAbilities(
         canDelete:
             isAuthor || hasClassPermission(access, 'comments.delete_any'),
     };
+}
+
+// Mirrors the restore rule: moderators only (authors can't undo a delete).
+export function canRestoreComments(access: ClassAccess) {
+    return hasClassPermission(access, 'comments.delete_any');
 }

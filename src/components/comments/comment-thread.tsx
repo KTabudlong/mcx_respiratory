@@ -1,9 +1,11 @@
 import { Minus, Plus } from 'lucide-react';
 import { useState } from 'react';
+import { toast } from 'sonner';
 
 import { CommentActions } from '@/components/comments/comment-actions';
 import { CommentForm } from '@/components/comments/comment-form';
 import { CommentMeta } from '@/components/comments/comment-meta';
+import { RestoreButton } from '@/components/common/action-buttons';
 import { ConfirmDialog } from '@/components/common/confirm-dialog';
 import { VoteButtons } from '@/components/posts/vote-buttons';
 import { Button } from '@/components/ui/button';
@@ -12,14 +14,20 @@ import { countComments } from '@/lib/comment-tree';
 import {
     createComment,
     MAX_COMMENT_DEPTH,
+    restoreComment,
     softDeleteComment,
     updateComment,
 } from '@/lib/comments';
+import { getErrorMessage } from '@/lib/errors';
 import type { ClassAccess } from '@/lib/permissions';
-import { canVoteIn, commentAbilities } from '@/lib/permissions';
+import {
+    canRestoreComments,
+    canVoteIn,
+    commentAbilities,
+} from '@/lib/permissions';
 import { cn } from '@/lib/utils';
 import { commentPath } from '@/lib/votes';
-import type { UserProfile, VoteValue } from '@/types';
+import type { Comment, UserProfile, VoteValue } from '@/types';
 
 // Everything a comment needs besides its own node.
 export type ThreadContext = {
@@ -30,7 +38,7 @@ export type ThreadContext = {
     classOpen: boolean;
     authors: Map<string, UserProfile>;
     myVotes: Map<string, VoteValue>;
-    onVoteError: (message: string) => void;
+    onError: (message: string) => void;
 };
 
 function CommentItem({
@@ -44,7 +52,22 @@ function CommentItem({
     const [replying, setReplying] = useState(false);
     const [editing, setEditing] = useState(false);
     const [confirming, setConfirming] = useState(false);
+    const [restoring, setRestoring] = useState(false);
     const { comment } = node;
+
+    async function handleRestore(tombstone: Comment) {
+        setRestoring(true);
+        context.onError('');
+
+        try {
+            await restoreComment(tombstone);
+            toast.success('Comment restored.');
+        } catch (err) {
+            context.onError(getErrorMessage(err));
+        } finally {
+            setRestoring(false);
+        }
+    }
     const hiddenCount = countComments(node.children) + (comment ? 1 : 0);
     const votePath = commentPath(context.classId, context.postId, node.id);
 
@@ -68,9 +91,23 @@ function CommentItem({
                             author={context.authors.get(comment.userId)}
                         />
                     ) : (
-                        <p className="text-xs text-muted-foreground italic">
-                            [deleted]
-                        </p>
+                        <div className="flex items-center gap-2">
+                            <p className="text-xs text-muted-foreground italic">
+                                [deleted]
+                            </p>
+                            {node.tombstone &&
+                                canRestoreComments(context.access) && (
+                                    <RestoreButton
+                                        size="icon-xs"
+                                        label="Restore comment"
+                                        disabled={restoring}
+                                        onClick={() =>
+                                            node.tombstone &&
+                                            handleRestore(node.tombstone)
+                                        }
+                                    />
+                                )}
+                        </div>
                     )}
 
                     {collapsed && (
@@ -113,7 +150,7 @@ function CommentItem({
                                         context.access,
                                         context.classOpen,
                                     )}
-                                    onError={context.onVoteError}
+                                    onError={context.onError}
                                 />
                                 <CommentActions
                                     {...commentAbilities(

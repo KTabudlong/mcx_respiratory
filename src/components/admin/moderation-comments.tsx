@@ -1,6 +1,10 @@
 import { useState } from 'react';
 import { toast } from 'sonner';
 
+import {
+    DeleteButton,
+    RestoreButton,
+} from '@/components/common/action-buttons';
 import { FormMessage } from '@/components/common/form-message';
 import { PageLoader } from '@/components/common/page-loader';
 import { Badge } from '@/components/ui/badge';
@@ -11,6 +15,7 @@ import { useUsersById } from '@/hooks/use-users-by-id';
 import { restoreComment, softDeleteComment } from '@/lib/comments';
 import { formatDateTime } from '@/lib/dates';
 import { getErrorMessage } from '@/lib/errors';
+import { matchedThreads, threadOrder } from '@/lib/moderation';
 import { cn } from '@/lib/utils';
 import type { Comment, Post } from '@/types';
 
@@ -33,18 +38,27 @@ function CommentText({ comment }: { comment: Comment }) {
 }
 
 // Every comment on one post, deleted ones included (comments.delete_any),
-// oldest first, with delete / restore.
-export function ModerationComments({ post }: { post: Post }) {
+// in thread order, with delete / restore. With `highlightIds` (search
+// matches) only the matching threads show until "Show all".
+export function ModerationComments({
+    post,
+    highlightIds,
+}: {
+    post: Post;
+    highlightIds?: Set<string>;
+}) {
     const comments = useCollection<Comment>(
         `classes/${post.classId}/posts/${post.id}/comments`,
     );
     const authors = useUsersById(comments.data.map((item) => item.userId));
     const [busyId, setBusyId] = useState('');
     const [error, setError] = useState('');
+    const [showAll, setShowAll] = useState(false);
 
-    const sorted = [...comments.data].sort(
-        (a, b) => a.createdAt.toMillis() - b.createdAt.toMillis(),
-    );
+    const ordered = threadOrder(comments.data);
+    const filtering = highlightIds !== undefined && !showAll;
+    const sorted = filtering ? matchedThreads(ordered, highlightIds) : ordered;
+    const hiddenCount = ordered.length - sorted.length;
 
     async function run(comment: Comment, action: () => Promise<void>) {
         const wasDeleted = comment.deletedAt !== null;
@@ -78,6 +92,18 @@ export function ModerationComments({ post }: { post: Post }) {
             {sorted.length === 0 && (
                 <p className="text-sm text-muted-foreground">No comments.</p>
             )}
+            {highlightIds && (hiddenCount > 0 || showAll) && (
+                <Button
+                    variant="link"
+                    size="sm"
+                    className="h-auto justify-self-start p-0 text-xs"
+                    onClick={() => setShowAll(!showAll)}
+                >
+                    {showAll
+                        ? 'Show matching threads only'
+                        : `Show all ${ordered.length} comments (${hiddenCount} hidden)`}
+                </Button>
+            )}
             <ul className="grid gap-2">
                 {sorted.map((comment) => {
                     const author = authors.get(comment.userId);
@@ -89,6 +115,8 @@ export function ModerationComments({ post }: { post: Post }) {
                             className={cn(
                                 'flex flex-col gap-2 rounded-md border bg-background p-3 sm:flex-row sm:items-start sm:justify-between',
                                 deleted && 'opacity-70',
+                                highlightIds?.has(comment.id) &&
+                                    'border-amber-400 bg-amber-50 ring-1 ring-amber-400 dark:bg-amber-950/40',
                             )}
                             style={{
                                 marginLeft: `${comment.ancestorIds.length * 0.75}rem`,
@@ -108,21 +136,29 @@ export function ModerationComments({ post }: { post: Post }) {
                                 </p>
                                 <CommentText comment={comment} />
                             </div>
-                            <Button
-                                size="sm"
-                                variant={deleted ? 'outline' : 'ghost'}
-                                className="shrink-0 self-start"
-                                disabled={busyId === comment.id}
-                                onClick={() =>
-                                    run(comment, () =>
-                                        deleted
-                                            ? restoreComment(comment)
-                                            : softDeleteComment(comment),
-                                    )
-                                }
-                            >
-                                {deleted ? 'Restore' : 'Delete'}
-                            </Button>
+                            {deleted ? (
+                                <RestoreButton
+                                    label="Restore comment"
+                                    className="shrink-0 self-start"
+                                    disabled={busyId === comment.id}
+                                    onClick={() =>
+                                        run(comment, () =>
+                                            restoreComment(comment),
+                                        )
+                                    }
+                                />
+                            ) : (
+                                <DeleteButton
+                                    label="Delete comment"
+                                    className="shrink-0 self-start"
+                                    disabled={busyId === comment.id}
+                                    onClick={() =>
+                                        run(comment, () =>
+                                            softDeleteComment(comment),
+                                        )
+                                    }
+                                />
+                            )}
                         </li>
                     );
                 })}

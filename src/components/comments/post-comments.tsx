@@ -28,7 +28,7 @@ export function PostComments({
     myVotes: Map<string, VoteValue>;
 }) {
     const { user, accessIn } = useAuth();
-    const [voteError, setVoteError] = useState('');
+    const [actionError, setActionError] = useState('');
     const [sort, setSort] = useState<CommentSort>(DEFAULT_COMMENT_SORT);
     const { comments, deleted, loading, error } = useComments(
         post.classId,
@@ -114,7 +114,7 @@ export function PostComments({
             )}
 
             {error && <FormMessage message={getErrorMessage(error)} />}
-            <FormMessage message={voteError} />
+            <FormMessage message={actionError} />
 
             {loading ? (
                 <PageLoader />
@@ -133,7 +133,7 @@ export function PostComments({
                         classOpen,
                         authors,
                         myVotes,
-                        onVoteError: setVoteError,
+                        onError: setActionError,
                     }}
                 />
             )}

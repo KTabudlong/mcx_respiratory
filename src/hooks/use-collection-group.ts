@@ -80,6 +80,11 @@ export function useAllJoinRequests(enabled: boolean) {
     return useGroupQuery<JoinRequest>('joinRequests', enabled ? ALL : null);
 }
 
+// Every class's open invites (super admins only). Pass false to skip.
+export function useAllInvites(enabled: boolean) {
+    return useGroupQuery<ClassInvite>('invites', enabled ? ALL : null);
+}
+
 // Class invites sent to this school email (the signed-in user's own).
 export function useInvitesFor(email: string | null) {
     return useGroupQuery<ClassInvite>(

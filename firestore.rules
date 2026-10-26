@@ -342,9 +342,11 @@ service cloud.firestore {
         || isSuperAdmin();
     }
 
-    // "My invites" filters on email == my school email.
+    // "My invites" filters on email == my school email. Super admins list
+    // every class's invites (why an account is still pending).
     match /{path=**}/invites/{email} {
-      allow read: if isMember() && resource.data.email == myEmail();
+      allow read: if (isMember() && resource.data.email == myEmail())
+        || isSuperAdmin();
     }
 
     // One user's posts / comments across every class (super admin user page).

@@ -11,6 +11,7 @@ import {
 } from '@/components/auth/require-permission';
 import AuthLayout from '@/layouts/auth-layout';
 import BoardLayout from '@/layouts/board-layout';
+import { MODERATION_PERMISSIONS } from '@/lib/permissions';
 import ForgotPassword from '@/pages/auth/forgot-password';
 import Login from '@/pages/auth/login';
 import Signup from '@/pages/auth/signup';
@@ -188,10 +189,7 @@ export const router = createHashRouter([
                                         path: 'moderation',
                                         element: (
                                             <RequireClassPermission
-                                                anyOf={[
-                                                    'posts.delete_any',
-                                                    'comments.delete_any',
-                                                ]}
+                                                anyOf={MODERATION_PERMISSIONS}
                                             />
                                         ),
                                         children: [
@@ -200,6 +198,13 @@ export const router = createHashRouter([
                                                 ...lazyPage(
                                                     () =>
                                                         import('@/pages/admin/classes/moderation'),
+                                                ),
+                                            },
+                                            {
+                                                path: ':postId',
+                                                ...lazyPage(
+                                                    () =>
+                                                        import('@/pages/admin/classes/post-edit'),
                                                 ),
                                             },
                                         ],

@@ -26,9 +26,9 @@
 
 ## Short-term checklist
 
-**Planning last reviewed:** 2026-10-22
+**Planning last reviewed:** 2026-10-26
 
-**Current milestone:** Manual testing on the **test project** (sections 0–7 of the 2026-10-21 run pass; 8–9 tested with feedback, now fixed; section 10 step 1 done 2026-10-22, rest of 10 + 11 left). 2026-10-21 changes need re-checking, and their rules go to production with the `dev` → `main` merge. Then Phase 6.
+**Current milestone:** Manual testing on the **test project** (sections 0–9 of the 2026-10-21 run pass; section 10 steps 1–5 pass 2026-10-26; left: 10 step 6 email / text, step 7 user page, 11 archive). Then merge `dev` → `main` + production rules deploy, then Phase 6. 2026-10-21 changes need re-checking, and their rules go to production with the `dev` → `main` merge. Then Phase 6.
 
 ### Planning — data model + UI ✅ 2026-10-08
 
@@ -203,7 +203,7 @@
 - [x] Deploy 2026-10-21 rules to the **test** project
 - [ ] **Deploy 2026-10-21 rules to production together with the `dev` → `main` merge** (see Blocked / waiting)
 - [ ] (User) Re-check 2026-10-21 changes: sign up with no class; sidebar stays collapsed after reload; toasts on invite / decline / approve etc.; admin account menu + log out → login as another user lands on their home; search finds words in post text; edit a post twice → history dialog lists both with what changed; delete a comment with no replies → "[deleted]" stays, moderator restores it; comment Sort by Score / Date + direction
-- [ ] (User) Finish the 2026-10-21 test run: section 10 (admin panel: overview, moderation, email / text) and 11 (archive). **2026-10-22:** step 1 (super admin overview) done; continue at step 2 (Class A overview)
+- [ ] (User) Finish the 2026-10-21 test run: section 10 (admin panel: overview, moderation, email / text) and 11 (archive). **2026-10-22:** step 1 (super admin overview) done. **2026-10-26:** steps 2 (Class A overview), 3 (sidebar), 4 (moderation, with feedback built), 5 (comments-only role) done; next step 6 (email / text), step 7 (user page), then 11
 - [x] Open question: "Comments (5)" while 4 visible on one post — resolved by tombstones (deleted comments stay as "[deleted]"), user confirmed 2026-10-22
 
 ### Decided + built 2026-10-22 (section 10 feedback)
@@ -211,7 +211,26 @@
 - [x] Dashboard cards open their page pre-filtered: Active / Deactivated users → All users `?status=…`; Pending join requests → Classes; class overview Posts / Deleted posts → Moderation `?status=live|deleted`. Filters and tabs live in the URL (survive reload / Back)
 - [x] "Active users" card now counts with the same rule as the Active filter (in a class or super admin), live from users + memberships instead of a `count()`
 - [x] Classes page tabs: **Active** (new "Join requests" column → that class's Students page) / **Archived** / **Requests** (class requests); class-requests banner opens the Requests tab
-- [ ] (User) Re-check: each overview card / banner lands on the right filter or tab; Active users number = Active list length; Classes tabs survive a reload
+- [x] (User) Re-check: each overview card / banner lands on the right filter or tab; Active users number = Active list length; Classes tabs survive a reload (passed 2026-10-26)
+
+### Decided + built 2026-10-26
+
+- [x] **Why pending:** under the Pending badge (All users + user page) — "Asked to join …", "Invited to … as … — not accepted yet", "Requested a new class: …", or "Not in a class and hasn't asked to join one" (`src/lib/pending-reasons.ts`). Rules: super admins may list every class's invites (collection group); deployed to the **test** project
+- [x] (User) Check: newbie shows "Asked to join Class A"; an invited-but-not-accepted account shows the invite; a pending account with nothing open shows the "Not in a class…" line (passed 2026-10-26)
+- [x] Section 10 steps 2 (Class A overview) and 3 (sidebar) pass; step 4 (moderation) passes apart from the feedback below
+- [x] Moderation search matches title **or** text (same `postMatches` as the board)
+- [x] Shared `DeleteButton` (red, trash icon) / `RestoreButton` (green, restore icon) in `components/common/action-buttons.tsx`: moderation posts + comments, board comment Delete, role Delete, restore a deactivated user. Destructive confirm dialogs were already red
+- [x] Moderation table: click a header (Post, Author, Posted, Status) to sort; again to flip; default Posted newest first; kept in the URL (`?sort=&dir=`)
+- [x] Sort headers cycle ascending → descending → unsorted (default order, newest first); every column starts ascending
+- [x] Delete / Restore buttons are icon-only app-wide; the word is the tooltip (`title`) and screen-reader label (`aria-label`); role Delete keeps its "move members first" tooltip when disabled
+- [x] Board: moderators (`comments.delete_any`) get a green Restore icon next to "[deleted]" comments (tombstones), same as Moderation; toast on success, errors inline
+- [x] Moderation search also matches **comment text** (moderators with `comments.delete_any`; deleted comments matched on their archived text). Posts matched through a comment show "N comments match", open automatically, and the matching comments are highlighted. No rules change: while searching, one live listener per post (`useClassComments`) — fine at class size
+- [x] Moderation comment list is in thread order (replies under their parent). While searching, an opened post shows only the matching threads (match + the comments above it + its replies); "Show all N comments" toggles the rest
+- [x] (User) Check the changes above (passed 2026-10-26)
+- [x] Moderation opens for **any** of `posts.delete_any`, `posts.edit_any`, `posts.pin`, `comments.delete_any` (`MODERATION_PERMISSIONS`: router, sidebar, overview Posts card). Rows offer only what the role allows: Edit (pencil → board edit page, new tab), Pin / Unpin, Delete / Restore + Deleted filter, comments. No rules change
+- [x] Editing from Moderation stays in the admin panel: `/admin/classes/:classId/moderation/:postId` (shared `PostEditor` with the board's edit page); Cancel / Save return to Moderation with its filter + sort; breadcrumb shows the post title; sidebar keeps Moderation (and All users on a user page) highlighted
+- [x] (User) Check: Moderator with edit + pin only → Moderation shows live posts with pencil + pin icons, no delete / comments arrow; admin edit page Cancel / Save (passed 2026-10-26)
+- [ ] Optional: Roles page hint that "Edit anyone's posts" / "Pin posts" also open Moderation (live posts only)
 
 ### Phase 6 — Polish + launch (days 23–25)
 
@@ -243,7 +262,7 @@ User decisions: gallery (not inline) photos, max 3 per post; quotes + divider, n
 
 - Nothing blocking. Unused GitHub environment variables cleaned up (user, 2026-10-15).
 - Merge `dev` → `main` waits until the user finishes the Phase 2b–5b / presidents / votes / 2026-10-19 manual tests. Production rules are already ahead of `main` (additive / optional fields, so the older live site still works).
-- **2026-10-21 rules (post edit history `editCount` + `edits/{n}`, comment tombstones + `archive/body`) are deployed to the TEST project only.** They break post editing / comment deleting on the older live site, so deploy them to production (`--project default`) **together with** the `dev` → `main` merge.
+- **2026-10-21 rules (post edit history `editCount` + `edits/{n}`, comment tombstones + `archive/body`) are deployed to the TEST project only.** They break post editing / comment deleting on the older live site, so deploy them to production (`--project default`) **together with** the `dev` → `main` merge. The 2026-10-26 rule (super admins list all invites, deployed to test) rides along in the same deploy.
 
 ---
 
@@ -258,3 +277,4 @@ User decisions: gallery (not inline) photos, max 3 per post; quotes + divider, n
 - **2026-10-19** — Manual testing started. Built + deployed: role-change confirm, rank tooltip, invites for existing accounts (accept / decline), in-app notifications for class changes, email-update consent, `/profile` page. Agreed: super admin can edit name + phone with a change log (not built); consent stays student-only.
 - **2026-10-21** — Test Firebase project + Mailtrap for fake accounts; TEST badge. Testing feedback built: optional class at sign-up, saved sidebar state, toasts everywhere, admin account menu, clean logout redirect, text search, post edit history (rules-enforced), Reddit-style "[deleted]" comments, comment sort by score / date + direction. New rules on the test project only until the merge.
 - **2026-10-22** — Section 10 testing started. Dashboard cards open pre-filtered pages (filters / tabs in the URL); Classes page split into Active / Archived / Requests tabs with a join-requests column.
+- **2026-10-26** — Section 10 steps 1–5 pass. Built from feedback: why-pending reasons, icon-only red Delete / green Restore buttons, Moderation search incl. comments (matching threads only) + sortable headers, Moderation open to edit / pin roles with per-row actions, admin-panel post edit page, restore comments on the board. Invites rule on test only until the merge.

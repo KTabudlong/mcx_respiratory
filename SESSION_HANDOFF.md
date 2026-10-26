@@ -79,36 +79,25 @@
 
 ### Last session
 
-**2026-10-22 (session 7, short — 52m) — section 10 testing started**
+**2026-10-26 (session 8) — section 10 steps 1–5 pass; admin-panel polish from feedback**
 
-- **Tested:** section 10 step 1 (super admin overview): numbers, banner, class list OK. "Comments (5)" question closed (tombstones fixed it).
-- **Built from feedback (checks green, 94 tests; no rules changes):** dashboard cards open their page pre-filtered — filters / tabs now live in the URL via `useSearchParams` + `pickParam` (`src/lib/search-params.ts`): All users `?status=`, Moderation `?status=`, Classes `?tab=active|archived|requests`. Classes page split into **Active / Archived / Requests** tabs (shadcn `tabs` added; `ClassesTable` component; Active has a "Join requests" column from the new `useAllJoinRequests` hook). "Active users" card now uses `countByStatus` (same rule as the filter) via `useUserStatusCounts` instead of a `count()`, so it no longer includes people not in a class.
-- **Not yet re-checked by the user.** Session stopped at the lunch break.
+- **Tested (test project):** 2026-10-22 changes, Class A overview, sidebar persistence, Moderation, comments-only role — all pass after the fixes below. 2026-10-22 commit pushed on `dev` by the user.
+- **Built (checks + build green, 111 tests):**
+  - **Why pending** under the Pending badge (All users + user page): join request / invite not accepted / class request / nothing (`lib/pending-reasons.ts`). **Rules:** super admins may list every class's invites (collection group) — deployed to **test only**.
+  - **Buttons:** shared icon-only `DeleteButton` (red, trash) / `RestoreButton` (green) in `components/common/action-buttons.tsx`, word in `title` + `aria-label`; used app-wide (moderation, board comments, roles, restore account).
+  - **Moderation:** search matches title, text **and comments** (moderators; `useClassComments` = one listener per post while searching, tombstones matched on archived text); matched posts open with only the matching threads (+ "Show all"); comments in thread order; sortable headers asc → desc → none (`lib/table-sort.ts`, `SortableHead`, `?sort=&dir=`); `lib/moderation.ts` holds the logic. Opens for any of `MODERATION_PERMISSIONS` (delete posts / edit posts / pin / delete comments) with per-row actions (pencil, pin, delete/restore, comments).
+  - **Admin edit page** `/admin/classes/:classId/moderation/:postId` (shared `PostEditor` with the board's edit page); Cancel / Save return to Moderation with filter + sort; breadcrumb shows the post title; sidebar highlights nested pages.
+  - **Board:** moderators restore "[deleted]" comments in place (`CommentNode.tombstone`).
+- **Opinion given:** edit / pin implying read of live posts is standard (deleted content stays behind delete permissions). Optional idea not built: hint on the Roles page that edit / pin also opens Moderation.
 
-**2026-10-21 (session 6) — test project + Mailtrap; testing feedback fixes**
+**2026-10-22 (session 7)** — dashboard cards open pre-filtered pages (filters / tabs in the URL), Classes tabs Active / Archived / Requests + join-requests column, Active users card matches the filter.
 
-- **Test setup:** new Firebase project `mcx-respiratory-test` (local dev via `.env.local`, alias `test`), Auth emails through Mailtrap's sandbox SMTP (set in the console), rules + indexes deployed there, super admin `superadmin@student.ccc.edu` (uid `G4V7hJ4NrBRDbJRN95hR14egFBt2`, `admins/` doc made by hand in the console). Amber "TEST · project" badge when not on the live project. Test accounts: Class A (pres, treas, mod, stu1, stu2, + co-pres / co-treas / co-mod / stu3 being added), Class B (requester = President, prof), newbie (join request to Class A).
-- **User test results:** sections 0–7 of the 2026-10-21 run pass; 8–9 tested (feedback below, now built); 10–11 not yet.
-- **Built (checks green, 91 tests):** optional class at sign-up ("Join a class" on `/pending`); admin sidebar state in `localStorage`; sonner toasts everywhere (`ConfirmDialog.successMessage` is required); admin header bell + shared `UserMenu`; `useLogOut()` → clean `/login`; feed search matches post text; **post edit history** (`editCount` + `edits/{n}`, rules-enforced, dialog from "edited by"); **comment tombstones** (`body: ''` + `archive/body`, "[deleted]" always shown, moderators see / restore the text); **comment sort** dropdown Score / Date + asc / desc.
-- **Rules:** the 2026-10-21 rules are on the **test project only** — they break post editing / comment deleting on the older live site, so deploy them to production **with** the `dev` → `main` merge (ROADMAP § Blocked).
-- Auto-review requires the user's approval for each rules deploy (even to the test project).
-
-**2026-10-19 (session 5) — manual testing started; invites, notifications, email consent, profile**
-
-- **Testing (in class, local dev):** test setup = classA (testA promoted Student → President), classB (empty), testB (no class). President sees the class admin pages ✅. **Found:** the President role was created at **rank 1** (same as Student), so testA had no role below theirs to assign → Invite disabled / no role changes. Not a bug — raise President's rank (e.g. 1000) on classA › Roles as super admin.
-- **Built (all checks green, 85 tests, build OK; rules + `invites.email` index deployed to production):**
-  - Role dropdown on Students asks for confirmation; Rank tooltip on Roles.
-  - **Invites for existing accounts** (`classes/{c}/invites/{email}`): Invite form creates a new account, or (email already registered) an invite the person accepts / declines on the board or `/pending`. Officers still can't browse users or read contacts — that's why there's an accept step (user chose this after reviewing the ERD; pivot = `members`, no user data copied).
-  - **Notifications** (`users/{uid}/notifications`): written in the same batch as add / approve / invite / role change / remove / President of a new class; rules check each matches the change. Bell on the board; unread on `/pending`.
-  - **Email consent** (`userContacts.emailOptIn`, optional in rules) + **`/profile`** page (name, phone, SMS + email consent). No email is sent yet.
-- **Agreed, not built:** super admin edits a user's name + phone with a change log; SMS / email consent stays student-only. Email delivery for notifications undecided (EmailJS vs `mailto:`).
-- **Untested risk:** notification rules add `exists`/`getAfter` calls to already heavy batches (Firestore limit 20 per batch). If approve / invite / President-class creation fails with permission-denied, check that first.
-- **Accounts:** user created classmates' accounts from local dev. Invited people must set their password + save their own profile (phone / consent); they can't change it afterwards on the live site until `dev` is merged (`/profile` only exists on `dev`).
+**2026-10-21 (session 6)** — test project `mcx-respiratory-test` + Mailtrap (super admin `superadmin@student.ccc.edu`; test accounts: Class A pres / treas / mod / stu1–3 / co-officers, Class B requester + prof, newbie pending). Built: optional class at sign-up, toasts, admin account menu, post edit history, comment tombstones, comment sort. **Those rules are on the test project only** (ROADMAP § Blocked).
 
 ### Resume here
 
-1. **User (test project, `npm run dev`), one step at a time:** re-check the 2026-10-22 changes (ROADMAP § "Decided + built 2026-10-22"), then continue section 10 at **step 2 — Class A overview** (cards + links, breadcrumbs incl. phone width, Open board), then sidebar persistence, moderation, `comments.delete_any`-only role, email / text, user page; then section 11 (archive). The full section 10–11 checklist is in the 2026-10-21 chat ([Test project and feedback fixes](be64807d-4e1e-485a-9864-7b5cb0dd332d)). Also still to re-check: the 2026-10-21 changes. Fix what breaks.
-2. **Merge day:** user commits on `dev` and merges `dev` → `main`; agent deploys rules + indexes to production in the same step (`npx -y firebase-tools@latest deploy --only firestore --project default`, needs the user's approval).
+1. **User (test project, `npm run dev`), one step at a time:** section 10 **step 6 — email / text** (Treasurer without / with "Email and text selected students": checkboxes, header checkbox, Clear, Email (BCC), Copy addresses, Text selected lists only opted-in members with phones, Copy numbers / message, Open in Messages on Android), then **step 7 — super admin user page** (profile, phone, classes, recent posts, "Deleted" badges, pending reasons), then **section 11 — archive** Class A (board read-only: no posting / editing / voting, scores still show; pending invites to Class A disappear). Full checklist: 2026-10-21 chat ([Test project and feedback fixes](be64807d-4e1e-485a-9864-7b5cb0dd332d)). Fix what breaks.
+2. **Merge day:** user commits on `dev` and merges `dev` → `main`; agent deploys rules + indexes to production in the same step (`npx -y firebase-tools@latest deploy --only firestore --project default`, needs the user's approval). Includes the 2026-10-21 rules and the 2026-10-26 invites rule.
 3. Next build candidates: super admin name/phone edit + change log; email delivery decision (EmailJS vs `mailto:`).
 4. Optional: backfill `score: 0` on pre-vote posts so **Top** includes them.
 5. **Phase 6** — Java + emulator rules tests (cover invites, notifications, edit history, tombstones), mobile/accessibility pass, invite the class.
@@ -124,4 +113,6 @@
 - Firebase MCP has no emulator behind it yet, and it targets the `.firebaserc` **default (live)** project — every write hits **production**. Ask the user first; for the test project use the CLI with `--project test`.
 - **First** super admin is created by hand (`admins/{uid}` `{ createdAt }`); after that, promote/remove from `/admin/users/:userId` (can't remove yourself).
 - Invites create the Auth login first, then a Firestore batch; if the batch fails the login exists without a profile (the student can still finish sign-up normally).
+- Notification rules add `exists`/`getAfter` calls to heavy batches (Firestore limit 20 per batch). If approve / invite / President-class creation fails with permission-denied, check that first.
+- Auto-review asks the user to approve every rules deploy, even to the test project.
 - Firebase MCP read-back quirk: `firestore_update_document` / `firestore_get_document` error on fields that are `null` (e.g. `deletedAt`) even when the write succeeded. Pass a `mask` that skips null fields when reading.

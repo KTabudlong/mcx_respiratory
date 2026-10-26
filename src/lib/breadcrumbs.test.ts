@@ -28,6 +28,16 @@ describe('adminCrumbs', () => {
         ).toEqual(['Admin', 'RT', 'Students']);
     });
 
+    it('names a post being edited from Moderation', () => {
+        expect(
+            adminCrumbs(
+                '/admin/classes/c1/moderation/p1',
+                { c1: 'RT', p1: 'Exam moved' },
+                false,
+            ).map((crumb) => crumb.label),
+        ).toEqual(['Admin', 'RT', 'Moderation', 'Exam moved']);
+    });
+
     it('shows a placeholder until a name loads', () => {
         expect(adminCrumbs('/admin/users/u1', {}, true).at(-1)).toEqual({
             label: '…',
