@@ -102,7 +102,17 @@ export function PostActions({
                     successMessage="Post deleted."
                     destructive
                     onConfirm={async () => {
-                        await softDeletePost(post.classId, post.id);
+                        // The card (and this dialog) disappears as soon as
+                        // the write starts, so a refusal is also reported to
+                        // the page.
+                        try {
+                            await softDeletePost(post.classId, post.id);
+                        } catch (err) {
+                            onError(getErrorMessage(err));
+
+                            throw err;
+                        }
+
                         onDeleted?.();
                     }}
                     onClose={() => setConfirming(false)}

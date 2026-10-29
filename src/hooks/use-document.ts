@@ -1,6 +1,7 @@
 import { doc, onSnapshot } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
 
+import { useLoadTimeout } from '@/hooks/use-load-timeout';
 import { db } from '@/lib/firebase';
 import { docData } from '@/lib/firestore-data';
 
@@ -28,15 +29,16 @@ export function useDocument<T>(path: string | null) {
         );
     }, [path]);
 
+    const current = path && snapshot?.path === path ? snapshot : null;
+    const timeout = useLoadTimeout(path, current === null);
+
     if (!path) {
         return { data: null, loading: false, error: null };
     }
 
-    const current = snapshot?.path === path ? snapshot : null;
-
     return {
         data: current?.data ?? null,
-        loading: current === null,
-        error: current?.error ?? null,
+        loading: current === null && timeout === null,
+        error: current?.error ?? timeout,
     };
 }

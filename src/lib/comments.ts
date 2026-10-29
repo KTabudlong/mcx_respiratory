@@ -12,6 +12,7 @@ import {
 } from 'firebase/firestore';
 
 import { db } from '@/lib/firebase';
+import { load, save } from '@/lib/save';
 import type { Comment } from '@/types';
 
 // Keep in sync with the comments rules in firestore.rules.
@@ -59,23 +60,27 @@ export function createComment(
     parent: Comment | null,
     body: string,
 ) {
-    return addDoc(commentsRef(classId, postId), {
-        userId,
-        parentId: parent?.id ?? null,
-        ancestorIds: parent ? [...parent.ancestorIds, parent.id] : [],
-        body: body.trim(),
-        score: 0,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-        deletedAt: null,
-    });
+    return save(
+        addDoc(commentsRef(classId, postId), {
+            userId,
+            parentId: parent?.id ?? null,
+            ancestorIds: parent ? [...parent.ancestorIds, parent.id] : [],
+            body: body.trim(),
+            score: 0,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+            deletedAt: null,
+        }),
+    );
 }
 
 export function updateComment(comment: Comment, body: string) {
-    return updateDoc(commentRef(comment), {
-        body: body.trim(),
-        updatedAt: serverTimestamp(),
-    });
+    return save(
+        updateDoc(commentRef(comment), {
+            body: body.trim(),
+            updatedAt: serverTimestamp(),
+        }),
+    );
 }
 
 export function commentArchiveRef(
@@ -96,22 +101,24 @@ export async function softDeleteComment(comment: Comment) {
         updatedAt: serverTimestamp(),
     });
 
-    await batch.commit();
+    await save(batch.commit());
 }
 
 // Moderators only (comments.delete_any). Tombstones get their text back
 // from the archive; comments deleted before tombstones still hold theirs.
 export async function restoreComment(comment: Comment) {
     if (comment.body !== '') {
-        await updateDoc(commentRef(comment), {
-            deletedAt: null,
-            updatedAt: serverTimestamp(),
-        });
+        await save(
+            updateDoc(commentRef(comment), {
+                deletedAt: null,
+                updatedAt: serverTimestamp(),
+            }),
+        );
 
         return;
     }
 
-    const archive = await getDoc(commentArchiveRef(comment));
+    const archive = await load(getDoc(commentArchiveRef(comment)));
     const body = archive.data()?.body;
 
     if (typeof body !== 'string') {
@@ -129,13 +136,15 @@ export async function restoreComment(comment: Comment) {
     });
     batch.delete(commentArchiveRef(comment));
 
-    await batch.commit();
+    await save(batch.commit());
 }
 
 // Firestore's COUNT(*): one read per 1,000 comments, not live.
 export async function countComments(classId: string, postId: string) {
-    const snap = await getCountFromServer(
-        query(commentsRef(classId, postId), where('deletedAt', '==', null)),
+    const snap = await load(
+        getCountFromServer(
+            query(commentsRef(classId, postId), where('deletedAt', '==', null)),
+        ),
     );
 
     return snap.data().count;

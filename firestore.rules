@@ -34,9 +34,11 @@ service cloud.firestore {
       return docPath('users', request.auth.uid);
     }
 
-    // Verified member with a profile that isn't soft-deleted.
+    // Verified member with a profile that isn't soft-deleted. One get (no
+    // exists) to stay under the per-request document access limits; a
+    // missing profile makes get() fail, which denies.
     function isActive() {
-      return isMember() && exists(myPath()) && get(myPath()).data.deletedAt == null;
+      return isMember() && get(myPath()).data.deletedAt == null;
     }
 
     function isSuperAdmin() {
@@ -262,9 +264,10 @@ service cloud.firestore {
     // change. Only the owner reads, marks read, or clears them.
     function notificationMatches(classId, uid, data) {
       let member = memberPath(classId, uid);
+      // added: createdAt == request.time means the membership is created in
+      // this batch (fewer document reads than exists + existsAfter).
       return (data.type == 'added'
-          && !exists(member)
-          && existsAfter(member)
+          && getAfter(member).data.createdAt == request.time
           && getAfter(member).data.addedBy == request.auth.uid
           && data.roleName == getAfter(rolePath(classId, getAfter(member).data.roleId)).data.name)
         || (data.type == 'role_changed'
@@ -488,7 +491,7 @@ service cloud.firestore {
           && incoming().addedBy == request.auth.uid
           && existsAfter(/databases/$(database)/documents/classes/$(classId))
           && existsAfter(docPath('users', memberId))
-          && existsAfter(rolePath(classId, incoming().roleId))
+          // getAfter fails (denies) if the role doesn't exist.
           && outranks(classId, getAfter(rolePath(classId, incoming().roleId)).data.rank)
           && (incoming().phone == ''
             || incoming().phone == get(/databases/$(database)/documents/classes/$(classId)/joinRequests/$(memberId)).data.phone

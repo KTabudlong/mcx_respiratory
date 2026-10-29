@@ -7,6 +7,7 @@ import {
 } from 'firebase/firestore';
 
 import { db } from '@/lib/firebase';
+import { save } from '@/lib/save';
 import type { ClassInvite, ClassRole } from '@/types';
 
 function inviteRef(classId: string, email: string) {
@@ -23,18 +24,20 @@ export function createInvite(
 ) {
     const id = email.trim().toLowerCase();
 
-    return setDoc(inviteRef(classId, id), {
-        email: id,
-        roleId: role.id,
-        roleName: role.name,
-        invitedBy,
-        createdAt: serverTimestamp(),
-    });
+    return save(
+        setDoc(inviteRef(classId, id), {
+            email: id,
+            roleId: role.id,
+            roleName: role.name,
+            invitedBy,
+            createdAt: serverTimestamp(),
+        }),
+    );
 }
 
 // Cancel (officer) or decline (invitee).
 export function deleteInvite(invite: ClassInvite) {
-    return deleteDoc(inviteRef(invite.classId, invite.id));
+    return save(deleteDoc(inviteRef(invite.classId, invite.id)));
 }
 
 // The invitee joins with the invited role and their own phone / SMS consent
@@ -63,5 +66,5 @@ export async function acceptInvite(
         batch.delete(doc(db, 'classes', invite.classId, 'joinRequests', uid));
     }
 
-    await batch.commit();
+    await save(batch.commit());
 }

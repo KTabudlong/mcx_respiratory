@@ -8,11 +8,12 @@ import {
 import type { Query } from 'firebase/firestore';
 
 import { db } from '@/lib/firebase';
+import { load } from '@/lib/save';
 
 // Dashboard numbers. Each is a COUNT(*) aggregation: one read per 1,000
 // matching docs, fetched once (not live).
 async function count(source: Query) {
-    const snap = await getCountFromServer(source);
+    const snap = await load(getCountFromServer(source));
 
     return snap.data().count;
 }

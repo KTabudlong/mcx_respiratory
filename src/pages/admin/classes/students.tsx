@@ -220,7 +220,7 @@ export default function ClassStudents() {
                         label="Search students by first or last name"
                     />
 
-                    {canMessage && selectedMembers.length > 0 && (
+                    {canMessage && (
                         <SelectedMembersBar
                             key={selectedEmails.join(',')}
                             selectedCount={selectedMembers.length}

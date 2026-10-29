@@ -26,9 +26,9 @@
 
 ## Short-term checklist
 
-**Planning last reviewed:** 2026-10-26
+**Planning last reviewed:** 2026-10-29
 
-**Current milestone:** Manual testing on the **test project** (sections 0–9 of the 2026-10-21 run pass; section 10 steps 1–5 pass 2026-10-26; left: 10 step 6 email / text, step 7 user page, 11 archive). Then merge `dev` → `main` + production rules deploy, then Phase 6. 2026-10-21 changes need re-checking, and their rules go to production with the `dev` → `main` merge. Then Phase 6.
+**Current milestone:** Manual testing on the **test project** (sections 0–9 of the 2026-10-21 run pass; section 10 steps 1–5 pass 2026-10-26, 6a / 6b pass 2026-10-29; left: 6c text selected, step 7 user page, 11 archive). Then merge `dev` → `main` + production rules deploy, then Phase 6. 2026-10-21 changes need re-checking, and their rules go to production with the `dev` → `main` merge. Then Phase 6.
 
 ### Planning — data model + UI ✅ 2026-10-08
 
@@ -232,6 +232,18 @@
 - [x] (User) Check: Moderator with edit + pin only → Moderation shows live posts with pencil + pin icons, no delete / comments arrow; admin edit page Cancel / Save (passed 2026-10-26)
 - [ ] Optional: Roles page hint that "Edit anyone's posts" / "Pin posts" also open Moderation (live posts only)
 
+### Decided + built 2026-10-29 (section 10 step 6 feedback + approve bug)
+
+- [x] Section 10 steps 6a (no messaging permission → no checkboxes) and 6b (select, Email (BCC), Copy addresses, Clear, header checkbox) pass
+- [x] Shared blue icon-only pencil `EditButton` (optional `to` = link): comment edit, Roles, All classes, Moderation. Post "…" menu item unchanged
+- [x] Roster selection bar always shown to `students.message` roles; actions disabled with a "Select at least 1 student to email or text" hint (text + tooltip) until someone is ticked
+- [x] **Bug:** approving a student with a phone / SMS opt-in failed with permission-denied — the member-create rules needed 11 document reads (limit 10 per write). Rules trimmed: `isActive()` one `get`; member create drops `existsAfter(role)`; "added" notification checks `createdAt == request.time`. Deployed to the **test** project; approve confirmed
+- [x] 30 s request limit app-wide: `save()` / `load()` (`src/lib/save.ts`) on every write and one-off read (60 s for posts with new photos), `useLoadTimeout` in all live data hooks; "There's a problem reaching the server… try again later" message instead of endless loading / busy buttons
+- [x] Errors no longer lost when Firestore removes a row optimistically: join requests (card-level error), class requests (dialogs outside the empty state), post delete (also reported to the page)
+- [ ] **Deploy the 2026-10-29 rules to production with the `dev` → `main` merge** (see Blocked / waiting)
+- [ ] (User) Re-check: blue pencils open the right editors; selection bar disabled + hint with nobody selected; blocker on → "problem reaching the server" after ~30 s; invite a brand-new account and approve a class request still work (heavy batches)
+- [ ] (User) Section 10 step 6c: Text selected (stu1b has phone + SMS opt-in), Copy message / numbers, optional Android "Open in Messages"
+
 ### Phase 6 — Polish + launch (days 23–25)
 
 - [ ] Install Java 21 (winget); emulator + automated rules tests
@@ -262,7 +274,7 @@ User decisions: gallery (not inline) photos, max 3 per post; quotes + divider, n
 
 - Nothing blocking. Unused GitHub environment variables cleaned up (user, 2026-10-15).
 - Merge `dev` → `main` waits until the user finishes the Phase 2b–5b / presidents / votes / 2026-10-19 manual tests. Production rules are already ahead of `main` (additive / optional fields, so the older live site still works).
-- **2026-10-21 rules (post edit history `editCount` + `edits/{n}`, comment tombstones + `archive/body`) are deployed to the TEST project only.** They break post editing / comment deleting on the older live site, so deploy them to production (`--project default`) **together with** the `dev` → `main` merge. The 2026-10-26 rule (super admins list all invites, deployed to test) rides along in the same deploy.
+- **2026-10-21 rules (post edit history `editCount` + `edits/{n}`, comment tombstones + `archive/body`) are deployed to the TEST project only.** They break post editing / comment deleting on the older live site, so deploy them to production (`--project default`) **together with** the `dev` → `main` merge. The 2026-10-26 rule (super admins list all invites, deployed to test) rides along in the same deploy, and so does the **2026-10-29 access-limit trim** — until it's deployed, approving a student with a phone number fails on the live site.
 
 ---
 
@@ -278,3 +290,4 @@ User decisions: gallery (not inline) photos, max 3 per post; quotes + divider, n
 - **2026-10-21** — Test Firebase project + Mailtrap for fake accounts; TEST badge. Testing feedback built: optional class at sign-up, saved sidebar state, toasts everywhere, admin account menu, clean logout redirect, text search, post edit history (rules-enforced), Reddit-style "[deleted]" comments, comment sort by score / date + direction. New rules on the test project only until the merge.
 - **2026-10-22** — Section 10 testing started. Dashboard cards open pre-filtered pages (filters / tabs in the URL); Classes page split into Active / Archived / Requests tabs with a join-requests column.
 - **2026-10-26** — Section 10 steps 1–5 pass. Built from feedback: why-pending reasons, icon-only red Delete / green Restore buttons, Moderation search incl. comments (matching threads only) + sortable headers, Moderation open to edit / pin roles with per-row actions, admin-panel post edit page, restore comments on the board. Invites rule on test only until the merge.
+- **2026-10-29** — Section 10 steps 6a / 6b pass. Fixed approve for students with a phone (rules over Firestore's 10-reads-per-write limit; trimmed, test only until the merge). Added a 30 s request limit app-wide with a "problem reaching the server" message, kept row errors from vanishing on optimistic updates, blue pencil Edit buttons, always-visible roster selection bar.

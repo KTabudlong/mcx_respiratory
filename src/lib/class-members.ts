@@ -14,6 +14,7 @@ import {
 
 import { db, firebaseConfig } from '@/lib/firebase';
 import { addNotification } from '@/lib/notifications';
+import { save } from '@/lib/save';
 import type { ClassRole, JoinRequest } from '@/types';
 
 function memberRef(classId: string, uid: string) {
@@ -50,7 +51,7 @@ export async function approveJoinRequest(
         roleName: role.name,
     });
 
-    await batch.commit();
+    await save(batch.commit());
 }
 
 // Super admins only (they can list users and read contacts): adds an existing
@@ -89,11 +90,11 @@ export async function addExistingMember(
         });
     }
 
-    await batch.commit();
+    await save(batch.commit());
 }
 
 export function rejectJoinRequest(request: JoinRequest) {
-    return deleteDoc(joinRequestRef(request.classId, request.userId));
+    return save(deleteDoc(joinRequestRef(request.classId, request.userId)));
 }
 
 export async function changeMemberRole(
@@ -114,7 +115,7 @@ export async function changeMemberRole(
         roleName: role.name,
     });
 
-    await batch.commit();
+    await save(batch.commit());
 }
 
 // Removes them from this class only; their account and posts stay.
@@ -132,7 +133,7 @@ export async function removeMember(
         roleName: '',
     });
 
-    await batch.commit();
+    await save(batch.commit());
 }
 
 function randomPassword() {
@@ -211,5 +212,5 @@ export async function inviteToClass(
         roleName: input.role.name,
     });
 
-    await batch.commit();
+    await save(batch.commit());
 }

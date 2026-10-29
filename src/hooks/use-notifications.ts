@@ -7,6 +7,7 @@ import {
 } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
 
+import { useLoadTimeout } from '@/hooks/use-load-timeout';
 import { db } from '@/lib/firebase';
 import { docData } from '@/lib/firestore-data';
 import type { AppNotification } from '@/types';
@@ -43,10 +44,12 @@ export function useNotifications(uid: string | null) {
     }, [uid]);
 
     const current = uid && snapshot?.uid === uid ? snapshot : null;
+    const loading = uid !== null && current === null;
+    const timeout = useLoadTimeout(uid, loading);
 
     return {
         data: current?.data ?? [],
-        loading: uid !== null && current === null,
-        error: current?.error ?? null,
+        loading: loading && timeout === null,
+        error: current?.error ?? timeout,
     };
 }

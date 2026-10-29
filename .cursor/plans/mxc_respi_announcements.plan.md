@@ -312,6 +312,9 @@ Two levels (decided 2026-10-08). Class managers see a **class switcher** listing
 - Board routes mirror the Firestore paths: `/` opens your last-used (or newest) class; `/classes/:classId` is the feed, `/classes/:classId/posts/:postId` the post page, `/classes/:classId/posts/new` needs `posts.create`, and `.../posts/:postId/edit` needs authorship or `posts.edit_any`. All of them require membership in that class (or super admin).
 - `/profile` lets users change their name and contact number (with SMS and email opt-in). Built 2026-10-19 (auth layout, open to pending users too; reuses the sign-up profile form).
 - Each page handles loading, empty and error states.
+- **Request time limit (2026-10-29):** Firestore never fails a request it can't send (offline, ad blocker); it waits. Every write goes through `save()` and one-off reads through `load()` (`src/lib/save.ts`); live listeners use `useLoadTimeout`. After 30 s (60 s for posts with new photos) the user sees "There's a problem reaching the server… try again later" instead of an endless spinner.
+- **Errors survive optimistic updates (2026-10-29):** Firestore applies a write on screen before the server answers, so a row can vanish and come back as a new component if the server refuses. Keep an action's error state in a component that stays mounted (the list or page), not in the row that disappears.
+- **Rules access limits (2026-10-29):** at most 10 `get` / `exists` / `getAfter` calls per write and 20 per batch; going over is a plain permission-denied. Keep helpers lean (`isActive()` is one `get`); check this first when a batch (approve, invite, new class) fails with permission-denied.
 - An `AuthProvider` context exposes `user`, `profile` and `can(permission)`.
 
 ## Proposed structure (mirrors `ih_planner/resources/js`)

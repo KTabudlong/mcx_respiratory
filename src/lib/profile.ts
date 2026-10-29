@@ -7,6 +7,7 @@ import {
 } from 'firebase/firestore';
 
 import { db } from '@/lib/firebase';
+import { save } from '@/lib/save';
 import type { ClassMember, UserContact } from '@/types';
 
 export type ProfileInput = {
@@ -106,7 +107,7 @@ export async function saveOwnProfile({
         });
     }
 
-    await batch.commit();
+    await save(batch.commit());
 }
 
 // From /pending: ask to join a class after sign-up (e.g. after a rejection).
@@ -116,14 +117,16 @@ export function requestToJoin(
     classId: string,
     contact: { phone: string; smsOptIn: boolean },
 ) {
-    return setDoc(doc(db, 'classes', classId, 'joinRequests', uid), {
-        userId: uid,
-        phone: contact.phone,
-        smsOptIn: contact.smsOptIn,
-        createdAt: serverTimestamp(),
-    });
+    return save(
+        setDoc(doc(db, 'classes', classId, 'joinRequests', uid), {
+            userId: uid,
+            phone: contact.phone,
+            smsOptIn: contact.smsOptIn,
+            createdAt: serverTimestamp(),
+        }),
+    );
 }
 
 export function cancelJoinRequest(uid: string, classId: string) {
-    return deleteDoc(doc(db, 'classes', classId, 'joinRequests', uid));
+    return save(deleteDoc(doc(db, 'classes', classId, 'joinRequests', uid)));
 }

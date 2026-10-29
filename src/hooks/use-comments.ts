@@ -8,6 +8,7 @@ import {
 import type { QuerySnapshot } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
 
+import { useLoadTimeout } from '@/hooks/use-load-timeout';
 import { db } from '@/lib/firebase';
 import { docData } from '@/lib/firestore-data';
 import type { Comment } from '@/types';
@@ -61,11 +62,13 @@ export function useComments(classId: string, postId: string) {
 
     const currentLive = live?.key === key ? live : null;
     const currentTombstones = tombstones?.key === key ? tombstones : null;
+    const loading = currentLive === null || currentTombstones === null;
+    const timeout = useLoadTimeout(key, loading);
 
     return {
         comments: currentLive?.comments ?? [],
         deleted: currentTombstones?.comments ?? [],
-        loading: currentLive === null || currentTombstones === null,
-        error: currentLive?.error ?? currentTombstones?.error ?? null,
+        loading: loading && timeout === null,
+        error: currentLive?.error ?? currentTombstones?.error ?? timeout,
     };
 }

@@ -13,6 +13,7 @@ import type { WriteBatch } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { addNotification } from '@/lib/notifications';
 import { MAX_ROLE_RANK, PERMISSIONS } from '@/lib/permissions';
+import { load, save } from '@/lib/save';
 import type { ClassGroup, ClassRequest, UserContact } from '@/types';
 
 export type ClassInput = {
@@ -95,7 +96,7 @@ export function activeClasses(classes: ClassGroup[]) {
 // Super admins only (they can read anyone's contact doc): the phone and SMS
 // consent copied onto the President's membership.
 async function contactOf(userId: string) {
-    const snap = await getDoc(doc(db, 'userContacts', userId));
+    const snap = await load(getDoc(doc(db, 'userContacts', userId)));
     const contact = snap.data() as UserContact | undefined;
 
     return {
@@ -154,7 +155,7 @@ async function writeNewClass(
     }
 
     extra?.(batch);
-    await batch.commit();
+    await save(batch.commit());
 
     return classRef.id;
 }
@@ -173,19 +174,21 @@ export function requestClass(
     uid: string,
     input: ClassInput & { note: string },
 ) {
-    return setDoc(doc(db, 'classRequests', uid), {
-        userId: uid,
-        name: input.name.trim(),
-        startYear: input.startYear,
-        endYear: input.endYear,
-        note: input.note.trim(),
-        createdAt: serverTimestamp(),
-    });
+    return save(
+        setDoc(doc(db, 'classRequests', uid), {
+            userId: uid,
+            name: input.name.trim(),
+            startYear: input.startYear,
+            endYear: input.endYear,
+            note: input.note.trim(),
+            createdAt: serverTimestamp(),
+        }),
+    );
 }
 
 // Cancel (requester) or reject (super admin).
 export function deleteClassRequest(uid: string) {
-    return deleteDoc(doc(db, 'classRequests', uid));
+    return save(deleteDoc(doc(db, 'classRequests', uid)));
 }
 
 // Super admin: create the class with the requester as President and close
@@ -197,16 +200,20 @@ export function approveClassRequest(request: ClassRequest, approvedBy: string) {
 }
 
 export function updateClass(id: string, input: ClassInput) {
-    return updateDoc(doc(db, 'classes', id), {
-        ...input,
-        name: input.name.trim(),
-        updatedAt: serverTimestamp(),
-    });
+    return save(
+        updateDoc(doc(db, 'classes', id), {
+            ...input,
+            name: input.name.trim(),
+            updatedAt: serverTimestamp(),
+        }),
+    );
 }
 
 export function setClassArchived(id: string, archived: boolean) {
-    return updateDoc(doc(db, 'classes', id), {
-        archivedAt: archived ? serverTimestamp() : null,
-        updatedAt: serverTimestamp(),
-    });
+    return save(
+        updateDoc(doc(db, 'classes', id), {
+            archivedAt: archived ? serverTimestamp() : null,
+            updatedAt: serverTimestamp(),
+        }),
+    );
 }

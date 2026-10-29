@@ -23,20 +23,65 @@ export function ClassRequestsCard({
     const { user } = useAuth();
     const [action, setAction] = useState<Action>(null);
 
-    if (requests.length === 0) {
-        return (
-            <p className="rounded-md border py-8 text-center text-sm text-muted-foreground">
-                No class requests waiting.
-            </p>
-        );
-    }
-
     function nameOf(userId: string) {
         const profile = usersById.get(userId);
 
         return profile ? `${profile.firstName} ${profile.lastName}` : 'Someone';
     }
 
+    // The dialogs render outside the list: the request disappears as soon
+    // as the write starts (Firestore shows it locally), and the dialog must
+    // stay to show an error if the server refuses.
+    return (
+        <>
+            {requests.length === 0 ? (
+                <p className="rounded-md border py-8 text-center text-sm text-muted-foreground">
+                    No class requests waiting.
+                </p>
+            ) : (
+                <RequestList
+                    requests={requests}
+                    nameOf={nameOf}
+                    onAction={setAction}
+                />
+            )}
+
+            {action?.type === 'approve' && (
+                <ConfirmDialog
+                    title={`Create ${action.request.name}?`}
+                    description={`${nameOf(action.request.userId)} becomes its President, with every permission in the class.`}
+                    confirmLabel="Create class"
+                    successMessage={`${action.request.name} created. ${nameOf(action.request.userId)} is its President.`}
+                    onConfirm={() =>
+                        approveClassRequest(action.request, user?.uid ?? '')
+                    }
+                    onClose={() => setAction(null)}
+                />
+            )}
+            {action?.type === 'reject' && (
+                <ConfirmDialog
+                    title={`Reject ${action.request.name}?`}
+                    description="The request is removed. They can send a new one."
+                    confirmLabel="Reject"
+                    successMessage={`Request for ${action.request.name} rejected.`}
+                    destructive
+                    onConfirm={() => deleteClassRequest(action.request.id)}
+                    onClose={() => setAction(null)}
+                />
+            )}
+        </>
+    );
+}
+
+function RequestList({
+    requests,
+    nameOf,
+    onAction,
+}: {
+    requests: ClassRequest[];
+    nameOf: (userId: string) => string;
+    onAction: (action: Action) => void;
+}) {
     return (
         <Card>
             <CardHeader>
@@ -78,7 +123,7 @@ export function ClassRequestsCard({
                                 <Button
                                     size="sm"
                                     onClick={() =>
-                                        setAction({ type: 'approve', request })
+                                        onAction({ type: 'approve', request })
                                     }
                                 >
                                     Approve
@@ -87,7 +132,7 @@ export function ClassRequestsCard({
                                     size="sm"
                                     variant="outline"
                                     onClick={() =>
-                                        setAction({ type: 'reject', request })
+                                        onAction({ type: 'reject', request })
                                     }
                                 >
                                     Reject
@@ -97,30 +142,6 @@ export function ClassRequestsCard({
                     ))}
                 </ul>
             </CardContent>
-
-            {action?.type === 'approve' && (
-                <ConfirmDialog
-                    title={`Create ${action.request.name}?`}
-                    description={`${nameOf(action.request.userId)} becomes its President, with every permission in the class.`}
-                    confirmLabel="Create class"
-                    successMessage={`${action.request.name} created. ${nameOf(action.request.userId)} is its President.`}
-                    onConfirm={() =>
-                        approveClassRequest(action.request, user?.uid ?? '')
-                    }
-                    onClose={() => setAction(null)}
-                />
-            )}
-            {action?.type === 'reject' && (
-                <ConfirmDialog
-                    title={`Reject ${action.request.name}?`}
-                    description="The request is removed. They can send a new one."
-                    confirmLabel="Reject"
-                    successMessage={`Request for ${action.request.name} rejected.`}
-                    destructive
-                    onConfirm={() => deleteClassRequest(action.request.id)}
-                    onClose={() => setAction(null)}
-                />
-            )}
         </Card>
     );
 }

@@ -8,6 +8,7 @@ import {
 } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
 
+import { useLoadTimeout } from '@/hooks/use-load-timeout';
 import { db } from '@/lib/firebase';
 import { docData } from '@/lib/firestore-data';
 import type { ClassInvite, ClassMember, JoinRequest, Post } from '@/types';
@@ -46,16 +47,17 @@ function useGroupQuery<T>(
         );
     }, [key, group, value, field]);
 
+    const current = key && snapshot?.key === key ? snapshot : null;
+    const timeout = useLoadTimeout(key, current === null);
+
     if (!key) {
         return { data: [] as T[], loading: false, error: null };
     }
 
-    const current = snapshot?.key === key ? snapshot : null;
-
     return {
         data: current?.data ?? [],
-        loading: current === null,
-        error: current?.error ?? null,
+        loading: current === null && timeout === null,
+        error: current?.error ?? timeout,
     };
 }
 
@@ -119,10 +121,11 @@ export function useRecentPostsBy(uid: string, count: number) {
     }, [key, uid, count]);
 
     const current = snapshot?.key === key ? snapshot : null;
+    const timeout = useLoadTimeout(key, current === null);
 
     return {
         data: current?.data ?? [],
-        loading: current === null,
-        error: current?.error ?? null,
+        loading: current === null && timeout === null,
+        error: current?.error ?? timeout,
     };
 }

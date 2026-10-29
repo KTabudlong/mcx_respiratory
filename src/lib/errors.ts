@@ -1,3 +1,7 @@
+const SERVER_PROBLEM = "There's a problem reaching the server";
+const IF_IT_KEEPS_HAPPENING =
+    'If it keeps happening, check your internet connection or turn off ad blockers for this site.';
+
 const MESSAGES: Record<string, string> = {
     'auth/email-already-in-use':
         'An account with this email already exists. Try logging in instead.',
@@ -13,6 +17,9 @@ const MESSAGES: Record<string, string> = {
     'auth/network-request-failed':
         'Network error. Check your connection and try again.',
     'permission-denied': "You don't have permission to do that.",
+    'save-timeout': `${SERVER_PROBLEM}, so this wasn't saved. Reload the page and try again later. ${IF_IT_KEEPS_HAPPENING}`,
+    'load-timeout': `${SERVER_PROBLEM}. Try again later. ${IF_IT_KEEPS_HAPPENING}`,
+    unavailable: `${SERVER_PROBLEM}. Try again later. ${IF_IT_KEEPS_HAPPENING}`,
 };
 
 // Turns Firebase Auth / Firestore errors into messages a student can act on.

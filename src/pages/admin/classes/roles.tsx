@@ -5,7 +5,7 @@ import { useParams } from 'react-router';
 import { ClassPageHeader } from '@/components/admin/class-page-header';
 import { RoleBadge } from '@/components/admin/role-badge';
 import { RoleFormDialog } from '@/components/admin/role-form-dialog';
-import { DeleteButton } from '@/components/common/action-buttons';
+import { DeleteButton, EditButton } from '@/components/common/action-buttons';
 import { ConfirmDialog } from '@/components/common/confirm-dialog';
 import { FormMessage } from '@/components/common/form-message';
 import { PageLoader } from '@/components/common/page-loader';
@@ -159,18 +159,15 @@ export default function ClassRoles() {
                                         <TableCell className="text-right whitespace-nowrap">
                                             {editable ? (
                                                 <div className="flex justify-end gap-2">
-                                                    <Button
-                                                        size="sm"
-                                                        variant="outline"
+                                                    <EditButton
+                                                        label={`Edit ${role.name}`}
                                                         onClick={() =>
                                                             setDialog({
                                                                 type: 'form',
                                                                 role,
                                                             })
                                                         }
-                                                    >
-                                                        Edit
-                                                    </Button>
+                                                    />
                                                     <span
                                                         title={
                                                             count > 0

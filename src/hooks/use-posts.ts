@@ -8,6 +8,7 @@ import {
 } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
 
+import { useLoadTimeout } from '@/hooks/use-load-timeout';
 import { db } from '@/lib/firebase';
 import { docData } from '@/lib/firestore-data';
 import type { Post } from '@/types';
@@ -56,11 +57,12 @@ export function usePosts(classId: string, count: number, sort: FeedSort) {
     // While a bigger page loads, keep showing the posts already loaded.
     const sameClass = snapshot?.classId === classId ? snapshot : null;
     const current = snapshot?.key === key ? snapshot : null;
+    const timeout = useLoadTimeout(key, current === null);
 
     return {
         posts: sameClass?.posts ?? [],
-        loading: current === null,
-        error: current?.error ?? null,
+        loading: current === null && timeout === null,
+        error: current?.error ?? timeout,
         hasMore: current !== null && current.posts.length === count,
     };
 }
@@ -99,10 +101,11 @@ export function useModerationPosts(classId: string, includeDeleted: boolean) {
     }, [key, classId, includeDeleted]);
 
     const current = snapshot?.key === key ? snapshot : null;
+    const timeout = useLoadTimeout(key, current === null);
 
     return {
         posts: current?.posts ?? [],
-        loading: current === null,
-        error: current?.error ?? null,
+        loading: current === null && timeout === null,
+        error: current?.error ?? timeout,
     };
 }

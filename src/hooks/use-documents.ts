@@ -1,6 +1,7 @@
 import { doc, onSnapshot } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
 
+import { useLoadTimeout } from '@/hooks/use-load-timeout';
 import { db } from '@/lib/firebase';
 import { docData } from '@/lib/firestore-data';
 
@@ -46,6 +47,9 @@ export function useDocuments<T>(paths: string[]) {
         return () => unsubscribes.forEach((unsubscribe) => unsubscribe());
     }, [key]);
 
+    const loading = snapshot?.key !== key;
+    const timeout = useLoadTimeout(key === '' ? null : key, loading);
+
     if (key === '') {
         return { data: [] as T[], loading: false, error: null };
     }
@@ -59,7 +63,7 @@ export function useDocuments<T>(paths: string[]) {
             .split('|')
             .map((path) => byPath.get(path))
             .filter((item): item is T => item !== null && item !== undefined),
-        loading: snapshot?.key !== key,
-        error: snapshot?.key === key ? snapshot.error : null,
+        loading: loading && timeout === null,
+        error: snapshot?.key === key ? snapshot.error : timeout,
     };
 }

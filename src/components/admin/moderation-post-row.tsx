@@ -2,7 +2,6 @@ import {
     ChevronDown,
     ChevronRight,
     ExternalLink,
-    Pencil,
     Pin,
     PinOff,
 } from 'lucide-react';
@@ -11,6 +10,7 @@ import { Link, useLocation } from 'react-router';
 import { ModerationComments } from '@/components/admin/moderation-comments';
 import {
     DeleteButton,
+    EditButton,
     RestoreButton,
 } from '@/components/common/action-buttons';
 import { Badge } from '@/components/ui/badge';
@@ -118,22 +118,14 @@ export function ModerationPostRow({
                         </Button>
                     )}
                     {!deleted && canEdit && (
-                        <Button
-                            asChild
-                            size="icon-sm"
-                            variant="ghost"
+                        <EditButton
+                            label={`Edit “${post.title}”`}
                             title="Edit post"
-                        >
-                            <Link
-                                to={`/admin/classes/${post.classId}/moderation/${post.id}`}
-                                state={{
-                                    from: `${location.pathname}${location.search}`,
-                                }}
-                                aria-label={`Edit “${post.title}”`}
-                            >
-                                <Pencil aria-hidden />
-                            </Link>
-                        </Button>
+                            to={`/admin/classes/${post.classId}/moderation/${post.id}`}
+                            state={{
+                                from: `${location.pathname}${location.search}`,
+                            }}
+                        />
                     )}
                     {!deleted && canPin && (
                         <Button

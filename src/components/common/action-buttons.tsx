@@ -1,5 +1,6 @@
-import { RotateCcw, Trash2 } from 'lucide-react';
+import { Pencil, RotateCcw, Trash2 } from 'lucide-react';
 import type { ComponentProps } from 'react';
+import { Link } from 'react-router';
 
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -52,6 +53,39 @@ export function RestoreButton({
             {...props}
         >
             <RotateCcw aria-hidden />
+        </Button>
+    );
+}
+
+// Every Edit button: blue, pencil icon only. With `to` it's an in-app link.
+export function EditButton({
+    label = 'Edit',
+    size = 'icon-sm',
+    title,
+    className,
+    to,
+    state,
+    ...props
+}: ActionButtonProps & { to?: string; state?: unknown }) {
+    return (
+        <Button
+            size={size}
+            asChild={to !== undefined}
+            aria-label={label}
+            title={title ?? label}
+            className={cn(
+                'bg-blue-600 text-white hover:bg-blue-700 focus-visible:ring-blue-600/30 dark:bg-blue-700 dark:hover:bg-blue-600',
+                className,
+            )}
+            {...props}
+        >
+            {to !== undefined ? (
+                <Link to={to} state={state}>
+                    <Pencil aria-hidden />
+                </Link>
+            ) : (
+                <Pencil aria-hidden />
+            )}
         </Button>
     );
 }

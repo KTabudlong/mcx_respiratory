@@ -7,6 +7,7 @@ import {
 import type { WriteBatch } from 'firebase/firestore';
 
 import { db } from '@/lib/firebase';
+import { save } from '@/lib/save';
 import type { AppNotification, NotificationType } from '@/types';
 
 // Adds the notification to the batch that makes the change; the rules check
@@ -34,7 +35,7 @@ export async function markNotificationsRead(uid: string, ids: string[]) {
         });
     }
 
-    await batch.commit();
+    await save(batch.commit());
 }
 
 export function notificationText(

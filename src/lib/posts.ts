@@ -11,6 +11,7 @@ import type { WriteBatch } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { PreparedImage } from '@/lib/post-images';
 import { isBlankHtml, postBodyText } from '@/lib/rich-text';
+import { save, saveTimeoutFor } from '@/lib/save';
 import type { Post, PostChange, PostLink } from '@/types';
 
 // Keep in sync with hasValidContent() in firestore.rules. The body is
@@ -190,7 +191,7 @@ export async function createPost(
         deletedAt: null,
     });
     addImages(batch, classId, ref.id, userId, images);
-    await batch.commit();
+    await save(batch.commit(), saveTimeoutFor(images.length));
 
     return ref.id;
 }
@@ -270,7 +271,7 @@ export async function updatePost(
         batch.delete(imageRef(classId, postId, id));
     }
 
-    await batch.commit();
+    await save(batch.commit(), saveTimeoutFor(images.added.length));
 }
 
 export function setPostPinned(
@@ -278,23 +279,29 @@ export function setPostPinned(
     postId: string,
     pinned: boolean,
 ) {
-    return updateDoc(postRef(classId, postId), {
-        pinned,
-        updatedAt: serverTimestamp(),
-    });
+    return save(
+        updateDoc(postRef(classId, postId), {
+            pinned,
+            updatedAt: serverTimestamp(),
+        }),
+    );
 }
 
 export function softDeletePost(classId: string, postId: string) {
-    return updateDoc(postRef(classId, postId), {
-        deletedAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-    });
+    return save(
+        updateDoc(postRef(classId, postId), {
+            deletedAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+        }),
+    );
 }
 
 // Moderators only (posts.delete_any).
 export function restorePost(classId: string, postId: string) {
-    return updateDoc(postRef(classId, postId), {
-        deletedAt: null,
-        updatedAt: serverTimestamp(),
-    });
+    return save(
+        updateDoc(postRef(classId, postId), {
+            deletedAt: null,
+            updatedAt: serverTimestamp(),
+        }),
+    );
 }

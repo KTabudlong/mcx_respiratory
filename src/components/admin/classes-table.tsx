@@ -1,5 +1,6 @@
 import { Link } from 'react-router';
 
+import { EditButton } from '@/components/common/action-buttons';
 import { Button } from '@/components/ui/button';
 import {
     Table,
@@ -92,13 +93,10 @@ export function ClassesTable({
                                     </TableCell>
                                 )}
                                 <TableCell className="text-right whitespace-nowrap">
-                                    <Button
-                                        size="sm"
-                                        variant="ghost"
+                                    <EditButton
+                                        label={`Edit ${item.name}`}
                                         onClick={() => onEdit(item)}
-                                    >
-                                        Edit
-                                    </Button>
+                                    />
                                     <Button
                                         size="sm"
                                         variant="ghost"

@@ -1,6 +1,7 @@
 import { doc, increment, writeBatch } from 'firebase/firestore';
 
 import { db } from '@/lib/firebase';
+import { save } from '@/lib/save';
 import type { VoteValue } from '@/types';
 
 // Tapping your current vote removes it; tapping the other one switches.
@@ -55,5 +56,5 @@ export async function castVote(
         score: increment(scoreChange(current, next)),
     });
 
-    await batch.commit();
+    await save(batch.commit());
 }

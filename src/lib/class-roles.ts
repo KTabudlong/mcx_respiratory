@@ -9,6 +9,7 @@ import {
 
 import { db } from '@/lib/firebase';
 import { MAX_ROLE_RANK, MIN_ROLE_RANK } from '@/lib/permissions';
+import { save } from '@/lib/save';
 
 export type RoleInput = {
     name: string;
@@ -55,22 +56,26 @@ function rolesPath(classId: string) {
 }
 
 export function createRole(classId: string, input: RoleInput) {
-    return addDoc(rolesPath(classId), {
-        ...input,
-        name: input.name.trim(),
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-    });
+    return save(
+        addDoc(rolesPath(classId), {
+            ...input,
+            name: input.name.trim(),
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+        }),
+    );
 }
 
 export function updateRole(classId: string, roleId: string, input: RoleInput) {
-    return updateDoc(doc(db, 'classes', classId, 'roles', roleId), {
-        ...input,
-        name: input.name.trim(),
-        updatedAt: serverTimestamp(),
-    });
+    return save(
+        updateDoc(doc(db, 'classes', classId, 'roles', roleId), {
+            ...input,
+            name: input.name.trim(),
+            updatedAt: serverTimestamp(),
+        }),
+    );
 }
 
 export function deleteRole(classId: string, roleId: string) {
-    return deleteDoc(doc(db, 'classes', classId, 'roles', roleId));
+    return save(deleteDoc(doc(db, 'classes', classId, 'roles', roleId)));
 }

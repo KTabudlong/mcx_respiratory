@@ -22,30 +22,34 @@ function JoinRequestRow({
     roles,
     defaultRoleId,
     approvedBy,
+    onError,
 }: {
     request: JoinRequest;
     user: UserProfile | undefined;
     roles: ClassRole[];
     defaultRoleId: string;
     approvedBy: string;
+    onError: (message: string) => void;
 }) {
     const [roleId, setRoleId] = useState(defaultRoleId);
     const [busy, setBusy] = useState(false);
-    const [error, setError] = useState('');
     const selectId = `join-role-${request.id}`;
     const role = roles.find((item) => item.id === roleId);
 
     const name = user ? `${user.firstName} ${user.lastName}` : 'They';
 
+    // The row disappears as soon as the write starts (Firestore shows it
+    // locally) and comes back as a new row if the server refuses, so errors
+    // go to the list, which stays mounted.
     async function run(action: () => Promise<void>, successMessage: string) {
         setBusy(true);
-        setError('');
+        onError('');
 
         try {
             await action();
             toast.success(successMessage);
         } catch (err) {
-            setError(getErrorMessage(err));
+            onError(`${name}: ${getErrorMessage(err)}`);
             setBusy(false);
         }
     }
@@ -112,7 +116,6 @@ function JoinRequestRow({
                     </Button>
                 </div>
             </div>
-            <FormMessage message={error} />
         </li>
     );
 }
@@ -130,6 +133,8 @@ export function JoinRequestsList({
     defaultRoleId: string;
     approvedBy: string;
 }) {
+    const [error, setError] = useState('');
+
     if (requests.length === 0) {
         return null;
     }
@@ -144,7 +149,8 @@ export function JoinRequestsList({
                         : 'They picked this class at sign-up. Approve with a role, or reject.'}
                 </CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="grid gap-2">
+                <FormMessage message={error} />
                 <ul>
                     {requests.map((request) => (
                         <JoinRequestRow
@@ -154,6 +160,7 @@ export function JoinRequestsList({
                             roles={roles}
                             defaultRoleId={defaultRoleId}
                             approvedBy={approvedBy}
+                            onError={setError}
                         />
                     ))}
                 </ul>

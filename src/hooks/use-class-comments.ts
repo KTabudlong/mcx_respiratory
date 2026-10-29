@@ -1,6 +1,7 @@
 import { collection, doc, onSnapshot } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
 
+import { useLoadTimeout } from '@/hooks/use-load-timeout';
 import { db } from '@/lib/firebase';
 import { docData } from '@/lib/firestore-data';
 import type { Comment } from '@/types';
@@ -113,6 +114,14 @@ export function useClassComments(
         return () => stops.forEach((stop) => stop());
     }, [classId, tombstoneKey]);
 
+    const loading =
+        comments?.key !== postKey ||
+        (tombstoneKey !== '' && archived?.key !== tombstoneKey);
+    const timeout = useLoadTimeout(
+        postKey === '' ? null : `${postKey}|${tombstoneKey}`,
+        loading,
+    );
+
     if (postKey === '') {
         return {
             comments: [] as Comment[],
@@ -130,11 +139,10 @@ export function useClassComments(
     return {
         comments: currentComments,
         archived: currentArchived,
-        loading:
-            comments?.key !== postKey ||
-            (tombstoneKey !== '' && archived?.key !== tombstoneKey),
+        loading: loading && timeout === null,
         error:
             (comments?.key === postKey ? comments.error : null) ??
-            (archived?.key === tombstoneKey ? archived.error : null),
+            (archived?.key === tombstoneKey ? archived.error : null) ??
+            timeout,
     };
 }
