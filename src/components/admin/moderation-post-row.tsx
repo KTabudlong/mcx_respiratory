@@ -13,6 +13,7 @@ import {
     EditButton,
     RestoreButton,
 } from '@/components/common/action-buttons';
+import { DeletedBadge } from '@/components/common/deleted-badge';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { TableCell, TableRow } from '@/components/ui/table';
@@ -98,9 +99,7 @@ export function ModerationPostRow({
                     {formatDateTime(post.createdAt.toDate())}
                 </TableCell>
                 <TableCell>
-                    <Badge variant={deleted ? 'outline' : 'default'}>
-                        {deleted ? 'Deleted' : 'Live'}
-                    </Badge>
+                    {deleted ? <DeletedBadge /> : <Badge>Live</Badge>}
                 </TableCell>
                 <TableCell className="text-right whitespace-nowrap">
                     {!deleted && (

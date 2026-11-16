@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 
-import { Badge } from '@/components/ui/badge';
+import { ArchivedBadge } from '@/components/common/archived-badge';
 import { useDocument } from '@/hooks/use-document';
 import type { ClassGroup } from '@/types';
 
@@ -22,9 +22,7 @@ export function ClassPageHeader({
             <div>
                 <p className="flex items-center gap-2 text-sm text-muted-foreground">
                     {classGroup.data?.name ?? '…'}
-                    {classGroup.data?.archivedAt && (
-                        <Badge variant="outline">Archived</Badge>
-                    )}
+                    {classGroup.data?.archivedAt && <ArchivedBadge />}
                 </p>
                 <h1 className="text-2xl font-semibold">{title}</h1>
                 <p className="text-sm text-muted-foreground">{description}</p>

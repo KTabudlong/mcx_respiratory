@@ -78,7 +78,7 @@ export default function ClassRoles() {
             {roles.loading || members.loading ? (
                 <PageLoader />
             ) : (
-                <div className="rounded-md border">
+                <div className="rounded-md border bg-card">
                     <Table>
                         <TableHeader>
                             <TableRow>

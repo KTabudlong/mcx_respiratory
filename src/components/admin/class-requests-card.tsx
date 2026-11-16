@@ -35,7 +35,7 @@ export function ClassRequestsCard({
     return (
         <>
             {requests.length === 0 ? (
-                <p className="rounded-md border py-8 text-center text-sm text-muted-foreground">
+                <p className="rounded-md border bg-card py-8 text-center text-sm text-muted-foreground">
                     No class requests waiting.
                 </p>
             ) : (

@@ -1,16 +1,16 @@
 import { useState } from 'react';
 import { toast } from 'sonner';
 
+import { CommentBody } from '@/components/comments/comment-body';
 import {
     DeleteButton,
     RestoreButton,
 } from '@/components/common/action-buttons';
+import { DeletedBadge } from '@/components/common/deleted-badge';
 import { FormMessage } from '@/components/common/form-message';
 import { PageLoader } from '@/components/common/page-loader';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useCollection } from '@/hooks/use-collection';
-import { useDocument } from '@/hooks/use-document';
 import { useUsersById } from '@/hooks/use-users-by-id';
 import { restoreComment, softDeleteComment } from '@/lib/comments';
 import { formatDateTime } from '@/lib/dates';
@@ -18,24 +18,6 @@ import { getErrorMessage } from '@/lib/errors';
 import { matchedThreads, threadOrder } from '@/lib/moderation';
 import { cn } from '@/lib/utils';
 import type { Comment, Post } from '@/types';
-
-// A tombstone's text lives in its archive doc; older deleted comments and
-// live ones carry their own.
-function CommentText({ comment }: { comment: Comment }) {
-    const archived = comment.deletedAt !== null && comment.body === '';
-    const archive = useDocument<{ id: string; body: string }>(
-        archived
-            ? `classes/${comment.classId}/posts/${comment.postId}/comments/${comment.id}/archive/body`
-            : null,
-    );
-    const body = archived ? archive.data?.body : comment.body;
-
-    return (
-        <p className="line-clamp-4 text-sm break-words whitespace-pre-wrap">
-            {body ?? (archive.loading ? '…' : '(text not found)')}
-        </p>
-    );
-}
 
 // Every comment on one post, deleted ones included (comments.delete_any),
 // in thread order, with delete / restore. With `highlightIds` (search
@@ -113,7 +95,7 @@ export function ModerationComments({
                         <li
                             key={comment.id}
                             className={cn(
-                                'flex flex-col gap-2 rounded-md border bg-background p-3 sm:flex-row sm:items-start sm:justify-between',
+                                'flex flex-col gap-2 rounded-md border bg-card p-3 sm:flex-row sm:items-start sm:justify-between',
                                 deleted && 'opacity-70',
                                 highlightIds?.has(comment.id) &&
                                     'border-amber-400 bg-amber-50 ring-1 ring-amber-400 dark:bg-amber-950/40',
@@ -130,11 +112,11 @@ export function ModerationComments({
                                             : '…'}
                                     </span>
                                     {formatDateTime(comment.createdAt.toDate())}
-                                    {deleted && (
-                                        <Badge variant="outline">Deleted</Badge>
-                                    )}
+                                    {deleted && <DeletedBadge />}
                                 </p>
-                                <CommentText comment={comment} />
+                                <div className="line-clamp-4">
+                                    <CommentBody comment={comment} />
+                                </div>
                             </div>
                             {deleted ? (
                                 <RestoreButton

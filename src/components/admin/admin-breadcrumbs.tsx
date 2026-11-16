@@ -12,7 +12,10 @@ export function AdminBreadcrumbs() {
     const { pathname } = useLocation();
     const { isSuperAdmin } = useAuth();
     const classId = useMatch('/admin/classes/:classId/*')?.params.classId;
-    const userId = useMatch('/admin/users/:userId')?.params.userId;
+    const superAdminUserId = useMatch('/admin/users/:userId')?.params.userId;
+    const studentId = useMatch('/admin/classes/:classId/students/:userId')
+        ?.params.userId;
+    const userId = superAdminUserId ?? studentId;
     const classGroup = useDocument<ClassGroup>(
         classId ? `classes/${classId}` : null,
     );

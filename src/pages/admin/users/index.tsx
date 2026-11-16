@@ -9,22 +9,16 @@ import { SearchInput } from '@/components/common/search-input';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/use-auth';
 import { useCollection } from '@/hooks/use-collection';
-import {
-    useAllInvites,
-    useAllJoinRequests,
-    useAllMemberships,
-} from '@/hooks/use-collection-group';
+import { useAllMemberships } from '@/hooks/use-collection-group';
 import type { UserStatus } from '@/lib/account-status';
 import { getUserStatus } from '@/lib/account-status';
 import { setUserDeactivated } from '@/lib/admin-users';
 import { getErrorMessage } from '@/lib/errors';
-import { pendingReasons } from '@/lib/pending-reasons';
 import { pickParam } from '@/lib/search-params';
 import { filterUsers } from '@/lib/user-filters';
 import type {
     ClassGroup,
     ClassMember,
-    ClassRequest,
     UserContact,
     UserProfile,
 } from '@/types';
@@ -61,9 +55,6 @@ export default function AdminUsers() {
     const memberships = useAllMemberships(true);
     const contacts = useCollection<UserContact>('userContacts');
     const classes = useCollection<ClassGroup>('classes');
-    const joinRequests = useAllJoinRequests(true);
-    const invites = useAllInvites(true);
-    const classRequests = useCollection<ClassRequest>('classRequests');
     const [search, setSearch] = useState('');
     const [searchParams, setSearchParams] = useSearchParams();
     const status = pickParam(searchParams.get('status'), STATUS_VALUES, 'all');
@@ -80,10 +71,7 @@ export default function AdminUsers() {
         admins.error ??
         memberships.error ??
         contacts.error ??
-        classes.error ??
-        joinRequests.error ??
-        invites.error ??
-        classRequests.error;
+        classes.error;
 
     const superAdminIds = new Set(admins.data.map((admin) => admin.id));
     const membershipsByUser = groupByUser(memberships.data);
@@ -162,12 +150,6 @@ export default function AdminUsers() {
                     superAdminIds={superAdminIds}
                     contacts={contacts.data}
                     classes={classes.data}
-                    pendingReasonsByUser={pendingReasons(users.data, {
-                        joinRequests: joinRequests.data,
-                        invites: invites.data,
-                        classRequests: classRequests.data,
-                        classes: classes.data,
-                    })}
                     currentUserId={me?.uid}
                     emptyMessage={
                         users.data.length === 0

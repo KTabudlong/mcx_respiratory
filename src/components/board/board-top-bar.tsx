@@ -3,6 +3,7 @@ import { Link, useMatch, useNavigate } from 'react-router';
 
 import { NotificationsMenu } from '@/components/board/notifications-menu';
 import { NativeSelect } from '@/components/common/native-select';
+import { ThemeToggle } from '@/components/common/theme-toggle';
 import { UserMenu } from '@/components/common/user-menu';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/use-auth';
@@ -73,6 +74,7 @@ export function BoardTopBar() {
                             </Link>
                         </Button>
                     )}
+                    <ThemeToggle />
                     <NotificationsMenu />
                     <UserMenu />
                 </div>

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useParams } from 'react-router';
+import { toast } from 'sonner';
 
-import { PendingReasons } from '@/components/admin/pending-reasons';
 import { UserActivityCard } from '@/components/admin/user-activity-card';
 import { UserClassesCard } from '@/components/admin/user-classes-card';
 import { UserProfileCard } from '@/components/admin/user-profile-card';
@@ -16,30 +16,36 @@ import {
     useInvitesFor,
     useJoinRequestsOf,
     useMembershipsOf,
+    useRecentCommentsBy,
     useRecentPostsBy,
 } from '@/hooks/use-collection-group';
 import { useDocument } from '@/hooks/use-document';
 import { useDocuments } from '@/hooks/use-documents';
+import { useNotifications } from '@/hooks/use-notifications';
 import { useUserActivity } from '@/hooks/use-stats';
+import { useUsersById } from '@/hooks/use-users-by-id';
 import { getUserStatus } from '@/lib/account-status';
 import { makeSuperAdmin, removeSuperAdmin } from '@/lib/admins';
 import { getErrorMessage } from '@/lib/errors';
-import { pendingReasons } from '@/lib/pending-reasons';
+import { restorePost } from '@/lib/posts';
+import { buildUserHistory } from '@/lib/user-history';
 import type {
     ClassGroup,
     ClassRequest,
     ClassRole,
+    Post,
     UserContact,
     UserProfile,
 } from '@/types';
 
-const RECENT_POSTS = 10;
+const RECENT = 30;
 
 // /admin/users/:userId — super admins only (guarded in the router).
 export default function AdminUserShow() {
     const { userId = '' } = useParams();
     const { user: me } = useAuth();
     const [confirmAdmin, setConfirmAdmin] = useState(false);
+    const [restoreError, setRestoreError] = useState('');
     const user = useDocument<UserProfile>(`users/${userId}`);
     const contact = useDocument<UserContact>(`userContacts/${userId}`);
     const admin = useDocument<{ id: string }>(`admins/${userId}`);
@@ -50,7 +56,9 @@ export default function AdminUserShow() {
     const requests = useJoinRequestsOf(userId);
     const invites = useInvitesFor(user.data?.email ?? null);
     const classRequest = useDocument<ClassRequest>(`classRequests/${userId}`);
-    const posts = useRecentPostsBy(userId, RECENT_POSTS);
+    const posts = useRecentPostsBy(userId, RECENT);
+    const comments = useRecentCommentsBy(userId, RECENT);
+    const notifications = useNotifications(userId);
     const activity = useUserActivity(userId);
 
     const classIds = new Set([
@@ -58,6 +66,8 @@ export default function AdminUserShow() {
         ...requests.data.map((request) => request.classId),
         ...invites.data.map((invite) => invite.classId),
         ...posts.data.map((post) => post.classId),
+        ...comments.data.map((comment) => comment.classId),
+        ...notifications.data.map((item) => item.classId),
         ...(user.data?.createdInClassId ? [user.data.createdInClassId] : []),
     ]);
     const classes = useDocuments<ClassGroup>(
@@ -69,9 +79,16 @@ export default function AdminUserShow() {
                 `classes/${membership.classId}/roles/${membership.roleId}`,
         ),
     );
+    const actors = useUsersById([
+        ...notifications.data.map((item) => item.actorId),
+        ...memberships.data.map((membership) => membership.addedBy),
+    ]);
     const classById = new Map(classes.data.map((item) => [item.id, item]));
     const roleByClass = new Map(roles.data.map((role) => [role.classId, role]));
 
+    // Profile / classes errors stay at the top. Posts, comments, and
+    // notifications feed Activity only (a missing index there shouldn't
+    // look like the whole page failed).
     const error =
         user.error ??
         contact.error ??
@@ -104,6 +121,37 @@ export default function AdminUserShow() {
     const canToggleAdmin =
         userId !== me?.uid && (isSuperAdmin || user.data.deletedAt === null);
 
+    const history = buildUserHistory({
+        user: user.data,
+        notifications: notifications.data,
+        memberships: memberships.data,
+        roleNameByClass: new Map(
+            [...roleByClass].map(([classId, role]) => [classId, role.name]),
+        ),
+        joinRequests: requests.data,
+        invites: invites.data,
+        classRequest: classRequest.data,
+        posts: posts.data,
+        comments: comments.data,
+        className: (classId) => classById.get(classId)?.name ?? 'a class',
+        actorName: (uid) => {
+            const actor = actors.get(uid);
+
+            return actor ? `${actor.firstName} ${actor.lastName}` : 'Someone';
+        },
+    });
+
+    async function handleRestore(post: Post) {
+        setRestoreError('');
+
+        try {
+            await restorePost(post.classId, post.id);
+            toast.success(`“${post.title}” restored.`);
+        } catch (err) {
+            setRestoreError(getErrorMessage(err));
+        }
+    }
+
     return (
         <div className="grid gap-4">
             <div className="flex flex-wrap items-start justify-between gap-3">
@@ -116,22 +164,6 @@ export default function AdminUserShow() {
                     <p className="text-sm break-all text-muted-foreground">
                         {user.data.email}
                     </p>
-                    {status === 'pending' && (
-                        <div className="mt-2">
-                            <PendingReasons
-                                reasons={
-                                    pendingReasons([user.data], {
-                                        joinRequests: requests.data,
-                                        invites: invites.data,
-                                        classRequests: classRequest.data
-                                            ? [classRequest.data]
-                                            : [],
-                                        classes: classes.data,
-                                    }).get(userId) ?? []
-                                }
-                            />
-                        </div>
-                    )}
                 </div>
                 {canToggleAdmin && (
                     <Button
@@ -173,7 +205,13 @@ export default function AdminUserShow() {
                 />
             )}
 
-            {error && <FormMessage message={getErrorMessage(error)} />}
+            {(error || restoreError) && (
+                <FormMessage
+                    message={
+                        restoreError || (error ? getErrorMessage(error) : '')
+                    }
+                />
+            )}
 
             <div className="grid gap-4 lg:grid-cols-2">
                 <UserProfileCard
@@ -196,10 +234,21 @@ export default function AdminUserShow() {
 
             <UserActivityCard
                 activity={activity.stats}
-                posts={posts.data}
-                loading={posts.loading}
-                error={posts.error ?? activity.error}
-                classById={classById}
+                events={history}
+                loading={
+                    posts.loading ||
+                    comments.loading ||
+                    notifications.loading ||
+                    memberships.loading
+                }
+                error={
+                    posts.error ??
+                    comments.error ??
+                    notifications.error ??
+                    activity.error
+                }
+                canRestore
+                onRestore={handleRestore}
             />
         </div>
     );

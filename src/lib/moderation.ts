@@ -47,6 +47,15 @@ export function commentHits(
     return hits;
 }
 
+// One comment plus every reply under it, in thread order (for restore
+// previews and similar).
+export function commentSubtree(comments: Comment[], root: Comment) {
+    return threadOrder(comments).filter(
+        (comment) =>
+            comment.id === root.id || comment.ancestorIds.includes(root.id),
+    );
+}
+
 // A post's comments as a flat list in thread order: each reply right under
 // its parent, oldest first at every level (the list indents by depth).
 export function threadOrder(comments: Comment[]) {

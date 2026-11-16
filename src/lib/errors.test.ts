@@ -10,6 +10,9 @@ describe('getErrorMessage', () => {
         expect(getErrorMessage({ code: 'permission-denied' })).toBe(
             "You don't have permission to do that.",
         );
+        expect(getErrorMessage({ code: 'failed-precondition' })).toMatch(
+            /index/i,
+        );
     });
 
     it('falls back to a generic message', () => {

@@ -51,7 +51,7 @@ export function ClassInvites() {
     }
 
     return (
-        <div className="grid gap-3 rounded-md border bg-background p-4 text-sm">
+        <div className="grid gap-3 rounded-md border bg-card p-4 text-sm">
             <FormMessage
                 message={
                     error ||

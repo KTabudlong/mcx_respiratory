@@ -1,7 +1,10 @@
 import { Link } from 'react-router';
 
-import { EditButton } from '@/components/common/action-buttons';
-import { Button } from '@/components/ui/button';
+import {
+    ArchiveButton,
+    EditButton,
+    UnarchiveButton,
+} from '@/components/common/action-buttons';
 import {
     Table,
     TableBody,
@@ -32,7 +35,7 @@ export function ClassesTable({
     const columnCount = joinRequestCounts ? 5 : 4;
 
     return (
-        <div className="rounded-md border">
+        <div className="rounded-md border bg-card">
             <Table>
                 <TableHeader>
                     <TableRow>
@@ -93,19 +96,27 @@ export function ClassesTable({
                                     </TableCell>
                                 )}
                                 <TableCell className="text-right whitespace-nowrap">
-                                    <EditButton
-                                        label={`Edit ${item.name}`}
-                                        onClick={() => onEdit(item)}
-                                    />
-                                    <Button
-                                        size="sm"
-                                        variant="ghost"
-                                        onClick={() => onToggleArchive(item)}
-                                    >
-                                        {item.archivedAt === null
-                                            ? 'Archive'
-                                            : 'Unarchive'}
-                                    </Button>
+                                    <div className="flex justify-end gap-1">
+                                        <EditButton
+                                            label={`Edit ${item.name}`}
+                                            onClick={() => onEdit(item)}
+                                        />
+                                        {item.archivedAt === null ? (
+                                            <ArchiveButton
+                                                label={`Archive ${item.name}`}
+                                                onClick={() =>
+                                                    onToggleArchive(item)
+                                                }
+                                            />
+                                        ) : (
+                                            <UnarchiveButton
+                                                label={`Unarchive ${item.name}`}
+                                                onClick={() =>
+                                                    onToggleArchive(item)
+                                                }
+                                            />
+                                        )}
+                                    </div>
                                 </TableCell>
                             </TableRow>
                         );

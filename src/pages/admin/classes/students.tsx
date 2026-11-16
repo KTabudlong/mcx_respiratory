@@ -64,7 +64,7 @@ export default function ClassStudents() {
         canManage ? `classes/${classId}/invites` : null,
     );
     const userIds = new Set([
-        ...members.data.flatMap((member) => [member.userId, member.addedBy]),
+        ...members.data.map((member) => member.userId),
         ...requests.data.map((request) => request.userId),
         ...invites.data.map((invite) => invite.invitedBy),
     ]);
@@ -104,7 +104,6 @@ export default function ClassStudents() {
                 member,
                 user: userById.get(member.userId),
                 role,
-                addedBy: userById.get(member.addedBy),
                 manageable:
                     canManage &&
                     (role ? outranks(access, role.rank) : access.isSuperAdmin),

@@ -69,7 +69,7 @@ export function EditHistoryDialog({
                         {sorted.map((edit) => (
                             <li
                                 key={edit.id}
-                                className="grid gap-0.5 rounded-md border p-3 text-sm"
+                                className="grid gap-0.5 rounded-md border bg-card p-3 text-sm"
                             >
                                 <span className="font-medium">
                                     {fullName(users.get(edit.editorId))}

@@ -109,3 +109,52 @@ export function useModerationPosts(classId: string, includeDeleted: boolean) {
         error: current?.error ?? timeout,
     };
 }
+
+// One member's posts in one class, newest first (student detail page).
+// Same deleted-posts rule as Moderation: only with posts.delete_any.
+export function useMemberPosts(
+    classId: string,
+    userId: string,
+    includeDeleted: boolean,
+) {
+    const key = `${classId}|${userId}|${includeDeleted}`;
+    const [snapshot, setSnapshot] = useState<{
+        key: string;
+        posts: Post[];
+        error: Error | null;
+    } | null>(null);
+
+    useEffect(() => {
+        const byUser = where('userId', '==', userId);
+
+        return onSnapshot(
+            query(
+                collection(db, 'classes', classId, 'posts'),
+                ...(includeDeleted
+                    ? [byUser]
+                    : [byUser, where('deletedAt', '==', null)]),
+            ),
+            (snap) =>
+                setSnapshot({
+                    key,
+                    posts: snap.docs
+                        .map((item) => docData<Post>(item))
+                        .sort(
+                            (a, b) =>
+                                b.createdAt.toMillis() - a.createdAt.toMillis(),
+                        ),
+                    error: null,
+                }),
+            (error) => setSnapshot({ key, posts: [], error }),
+        );
+    }, [key, classId, userId, includeDeleted]);
+
+    const current = snapshot?.key === key ? snapshot : null;
+    const timeout = useLoadTimeout(key, current === null);
+
+    return {
+        posts: current?.posts ?? [],
+        loading: current === null && timeout === null,
+        error: current?.error ?? timeout,
+    };
+}

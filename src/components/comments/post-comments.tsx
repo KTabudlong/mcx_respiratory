@@ -1,5 +1,6 @@
 import { ArrowDownWideNarrow, ArrowUpNarrowWide } from 'lucide-react';
 import { useState } from 'react';
+import { useSearchParams } from 'react-router';
 
 import { CommentForm } from '@/components/comments/comment-form';
 import { CommentList } from '@/components/comments/comment-thread';
@@ -28,6 +29,8 @@ export function PostComments({
     myVotes: Map<string, VoteValue>;
 }) {
     const { user, accessIn } = useAuth();
+    const [searchParams] = useSearchParams();
+    const focusCommentId = searchParams.get('comment');
     const [actionError, setActionError] = useState('');
     const [sort, setSort] = useState<CommentSort>(DEFAULT_COMMENT_SORT);
     const { comments, deleted, loading, error } = useComments(
@@ -133,6 +136,7 @@ export function PostComments({
                         classOpen,
                         authors,
                         myVotes,
+                        focusCommentId,
                         onError: setActionError,
                     }}
                 />

@@ -1,7 +1,10 @@
+import { Check } from 'lucide-react';
+import { Link } from 'react-router';
+
 import { RoleBadge } from '@/components/admin/role-badge';
+import { DeleteButton, ViewButton } from '@/components/common/action-buttons';
 import { NativeSelect } from '@/components/common/native-select';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
     Table,
@@ -18,7 +21,6 @@ export type MemberRow = {
     member: ClassMember;
     user: UserProfile | undefined;
     role: ClassRole | undefined;
-    addedBy: UserProfile | undefined;
     // Manager can change this person's role and remove them.
     manageable: boolean;
 };
@@ -44,15 +46,14 @@ export function MembersTable({
     onChangeRole: (row: MemberRow, roleId: string) => void;
     onRemove: (row: MemberRow) => void;
 }) {
-    const showActions = rows.some((row) => row.manageable);
     const selectable = selectedIds !== undefined && onSelect !== undefined;
     const allSelected =
         rows.length > 0 &&
         rows.every((row) => selectedIds?.has(row.member.userId));
-    const columns = 4 + (showActions ? 1 : 0) + (selectable ? 1 : 0);
+    const columns = 5 + (selectable ? 1 : 0);
 
     return (
-        <div className="rounded-md border">
+        <div className="rounded-md border bg-card">
             <Table>
                 <TableHeader>
                     <TableRow>
@@ -75,13 +76,14 @@ export function MembersTable({
                         )}
                         <TableHead>Name</TableHead>
                         <TableHead>Phone</TableHead>
+                        <TableHead
+                            className="w-12 text-center"
+                            title="Opted in to text messages"
+                        >
+                            SMS
+                        </TableHead>
                         <TableHead>Role</TableHead>
-                        <TableHead>Added by</TableHead>
-                        {showActions && (
-                            <TableHead className="text-right">
-                                Actions
-                            </TableHead>
-                        )}
+                        <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -96,7 +98,10 @@ export function MembersTable({
                         </TableRow>
                     )}
                     {rows.map((row) => {
-                        const { member, user, role, addedBy } = row;
+                        const { member, user, role } = row;
+                        const name = user
+                            ? `${user.firstName} ${user.lastName}`
+                            : 'this person';
                         const selectId = `member-role-${member.id}`;
 
                         return (
@@ -126,9 +131,17 @@ export function MembersTable({
                                 )}
                                 <TableCell>
                                     <div className="flex items-center gap-2 font-medium">
-                                        {user
-                                            ? `${user.lastName}, ${user.firstName}`
-                                            : '…'}
+                                        {user ? (
+                                            <Link
+                                                to={`/admin/classes/${member.classId}/students/${member.userId}`}
+                                                className="underline-offset-4 hover:underline"
+                                            >
+                                                {user.lastName},{' '}
+                                                {user.firstName}
+                                            </Link>
+                                        ) : (
+                                            '…'
+                                        )}
                                         {member.userId === currentUserId &&
                                             ' (you)'}
                                         {user?.deletedAt && (
@@ -145,6 +158,15 @@ export function MembersTable({
                                     {member.phone
                                         ? formatPhone(member.phone)
                                         : '—'}
+                                </TableCell>
+                                <TableCell className="w-12 text-center">
+                                    {member.smsOptIn && (
+                                        <Check
+                                            className="mx-auto size-4 text-green-600 dark:text-green-500"
+                                            aria-label="Opted in to text messages"
+                                            role="img"
+                                        />
+                                    )}
                                 </TableCell>
                                 <TableCell>
                                     {row.manageable ? (
@@ -197,24 +219,22 @@ export function MembersTable({
                                         <RoleBadge role={role} />
                                     )}
                                 </TableCell>
-                                <TableCell className="text-sm text-muted-foreground">
-                                    {addedBy
-                                        ? `${addedBy.firstName} ${addedBy.lastName}`
-                                        : '—'}
-                                </TableCell>
-                                {showActions && (
-                                    <TableCell className="text-right">
+                                <TableCell>
+                                    <div className="flex justify-end gap-1">
+                                        <ViewButton
+                                            label={`View ${name}`}
+                                            title="View"
+                                            to={`/admin/classes/${member.classId}/students/${member.userId}`}
+                                        />
                                         {row.manageable && (
-                                            <Button
-                                                size="sm"
-                                                variant="ghost"
+                                            <DeleteButton
+                                                label={`Remove ${name} from the class`}
+                                                title="Remove from class"
                                                 onClick={() => onRemove(row)}
-                                            >
-                                                Remove
-                                            </Button>
+                                            />
                                         )}
-                                    </TableCell>
-                                )}
+                                    </div>
+                                </TableCell>
                             </TableRow>
                         );
                     })}

@@ -67,7 +67,7 @@ function ClassFeed({ classId }: { classId: string }) {
                         <div
                             role="group"
                             aria-label="Sort posts"
-                            className="inline-flex rounded-md border p-0.5"
+                            className="inline-flex rounded-md border bg-card p-0.5"
                         >
                             {(['new', 'top'] as const).map((option) => (
                                 <Button

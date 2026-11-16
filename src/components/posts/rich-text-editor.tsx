@@ -138,7 +138,7 @@ export function RichTextEditor({
     }
 
     return (
-        <div className="rounded-md border border-input shadow-xs focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/50">
+        <div className="rounded-md border border-input bg-card shadow-xs focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/50">
             <div
                 role="toolbar"
                 aria-label="Formatting"

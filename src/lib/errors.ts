@@ -17,6 +17,9 @@ const MESSAGES: Record<string, string> = {
     'auth/network-request-failed':
         'Network error. Check your connection and try again.',
     'permission-denied': "You don't have permission to do that.",
+    // Missing composite index (or still building) for a Firestore query.
+    'failed-precondition':
+        'This page needs a database index that is still being set up. Try again in a few minutes.',
     'save-timeout': `${SERVER_PROBLEM}, so this wasn't saved. Reload the page and try again later. ${IF_IT_KEEPS_HAPPENING}`,
     'load-timeout': `${SERVER_PROBLEM}. Try again later. ${IF_IT_KEEPS_HAPPENING}`,
     unavailable: `${SERVER_PROBLEM}. Try again later. ${IF_IT_KEEPS_HAPPENING}`,

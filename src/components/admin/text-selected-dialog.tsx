@@ -101,7 +101,7 @@ export function TextSelectedDialog({
                         return (
                             <li
                                 key={batch[0].userId}
-                                className="grid gap-2 rounded-md border p-3"
+                                className="grid gap-2 rounded-md border bg-card p-3"
                             >
                                 <p className="text-sm font-medium">
                                     {batches.length > 1
@@ -153,10 +153,19 @@ export function TextSelectedDialog({
                     </p>
                 )}
                 {skippedNames.length > 0 && (
-                    <p className="text-xs text-muted-foreground">
-                        Not included (no phone number or not opted in to texts):{' '}
-                        {skippedNames.join(', ')}
-                    </p>
+                    <div className="grid gap-2 rounded-md border bg-card p-3">
+                        <p className="text-sm font-medium">
+                            Not included{' '}
+                            <span className="font-normal text-muted-foreground">
+                                (no phone number or not opted in to texts)
+                            </span>
+                        </p>
+                        <ul className="max-h-32 overflow-y-auto text-sm text-muted-foreground">
+                            {skippedNames.map((name, index) => (
+                                <li key={`${name}-${index}`}>{name}</li>
+                            ))}
+                        </ul>
+                    </div>
                 )}
                 <p className="text-xs text-muted-foreground">
                     On a computer, copy the numbers into Google Messages for web

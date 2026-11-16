@@ -7,6 +7,7 @@ import { ClassPicker } from '@/components/auth/class-picker';
 import { ClassInvites } from '@/components/board/class-invites';
 import { ClassRequestDialog } from '@/components/board/class-request-dialog';
 import { NotificationList } from '@/components/board/notification-list';
+import { ArchivedBadge } from '@/components/common/archived-badge';
 import { FormMessage } from '@/components/common/form-message';
 import { Button } from '@/components/ui/button';
 import {
@@ -55,6 +56,18 @@ export default function Pending() {
     }
 
     const classById = new Map(classes.data.map((item) => [item.id, item]));
+    const openRequests = requests.data.filter((request) => {
+        const classGroup = classById.get(request.classId);
+
+        return classGroup == null || classGroup.archivedAt === null;
+    });
+    const archivedRequests = requests.data.filter((request) => {
+        const classGroup = classById.get(request.classId);
+
+        return classGroup != null && classGroup.archivedAt !== null;
+    });
+    const waitingForApproval = openRequests.length > 0;
+    const mutedActionClass = 'bg-muted text-muted-foreground hover:bg-muted/80';
 
     async function run(action: () => Promise<unknown>, successMessage = '') {
         setBusy(true);
@@ -80,14 +93,14 @@ export default function Pending() {
                 <CardTitle className="text-xl">
                     {deactivated
                         ? 'Account deactivated'
-                        : requests.data.length > 0
+                        : waitingForApproval
                           ? 'Waiting for approval'
                           : 'Join a class'}
                 </CardTitle>
                 <CardDescription>
                     {deactivated
                         ? 'Contact your instructor if you think this is a mistake.'
-                        : requests.data.length > 0
+                        : waitingForApproval
                           ? 'Someone in your class who manages students needs to approve you.'
                           : "You're not in a class yet. Ask to join one, accept an invite, or ask to start a new class."}
                 </CardDescription>
@@ -111,12 +124,12 @@ export default function Pending() {
                     }
                 />
                 {profile && unread.length > 0 && (
-                    <div className="grid gap-2 rounded-md border p-2">
+                    <div className="grid gap-2 rounded-md border bg-card p-2">
                         <NotificationList notifications={unread} />
                         <Button
                             size="sm"
                             variant="ghost"
-                            className="justify-self-end"
+                            className={`justify-self-end ${mutedActionClass}`}
                             onClick={() =>
                                 run(() =>
                                     markNotificationsRead(
@@ -131,12 +144,12 @@ export default function Pending() {
                     </div>
                 )}
                 <ClassInvites />
-                {!deactivated && requests.data.length > 0 && (
+                {!deactivated && openRequests.length > 0 && (
                     <ul className="grid gap-2">
-                        {requests.data.map((request) => (
+                        {openRequests.map((request) => (
                             <li
                                 key={request.classId}
-                                className="flex items-center justify-between gap-2 rounded-md border p-3 text-sm"
+                                className="flex items-center justify-between gap-2 rounded-md border bg-card p-3 text-sm"
                             >
                                 <span>
                                     Requested to join{' '}
@@ -148,6 +161,7 @@ export default function Pending() {
                                 <Button
                                     size="sm"
                                     variant="ghost"
+                                    className={mutedActionClass}
                                     disabled={busy}
                                     onClick={() =>
                                         run(
@@ -166,10 +180,61 @@ export default function Pending() {
                         ))}
                     </ul>
                 )}
+                {!deactivated && archivedRequests.length > 0 && (
+                    <ul className="grid gap-2">
+                        {archivedRequests.map((request) => {
+                            const classGroup = classById.get(request.classId);
+
+                            return (
+                                <li
+                                    key={request.classId}
+                                    className="flex flex-wrap items-center justify-between gap-2 rounded-md border bg-card p-3 text-sm"
+                                >
+                                    <div className="grid min-w-0 gap-1">
+                                        <p className="flex flex-wrap items-center gap-2">
+                                            <span>
+                                                Requested to join{' '}
+                                                <span className="font-medium">
+                                                    {classGroup?.name ??
+                                                        'a class'}
+                                                </span>
+                                            </span>
+                                            <ArchivedBadge />
+                                        </p>
+                                        <p className="text-muted-foreground">
+                                            This class is archived, so this
+                                            request can&apos;t be approved.
+                                            Cancel it and join another class, or
+                                            ask an admin to unarchive it.
+                                        </p>
+                                    </div>
+                                    <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        className={mutedActionClass}
+                                        disabled={busy}
+                                        onClick={() =>
+                                            run(
+                                                () =>
+                                                    cancelJoinRequest(
+                                                        request.userId,
+                                                        request.classId,
+                                                    ),
+                                                'Request cancelled.',
+                                            )
+                                        }
+                                    >
+                                        Cancel
+                                    </Button>
+                                </li>
+                            );
+                        })}
+                    </ul>
+                )}
                 {!deactivated &&
                     profile &&
                     !requests.loading &&
-                    requests.data.length === 0 && (
+                    openRequests.length === 0 && (
                         <form
                             className="grid gap-3"
                             onSubmit={(event) => {
@@ -204,7 +269,7 @@ export default function Pending() {
                         </form>
                     )}
                 {!deactivated && profile && (
-                    <div className="grid gap-2 rounded-md border p-3 text-sm">
+                    <div className="grid gap-2 rounded-md border bg-card p-3 text-sm">
                         <p>
                             {classRequest.data ? (
                                 <>

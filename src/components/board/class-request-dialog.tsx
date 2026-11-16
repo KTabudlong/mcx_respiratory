@@ -103,7 +103,7 @@ export function ClassRequestDialog({ onClose }: { onClose: () => void }) {
                 />
                 {existing.loading ? null : request ? (
                     <>
-                        <p className="rounded-md border p-3 text-sm">
+                        <p className="rounded-md border bg-card p-3 text-sm">
                             You asked for{' '}
                             <span className="font-medium">{request.name}</span>{' '}
                             ({request.startYear}–{request.endYear ?? ''}).

@@ -40,7 +40,7 @@ export function SelectedMembersBar({
         <div
             role="region"
             aria-label="Selected people"
-            className="flex flex-col gap-2 rounded-md border bg-muted/50 p-3 sm:flex-row sm:items-center"
+            className="flex flex-col gap-2 rounded-md border bg-muted p-3 sm:flex-row sm:items-center"
         >
             <p className="text-sm font-medium sm:mr-auto">
                 {selectedCount} selected

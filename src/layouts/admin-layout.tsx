@@ -5,6 +5,7 @@ import { Link, Outlet, useMatch } from 'react-router';
 import { AdminBreadcrumbs } from '@/components/admin/admin-breadcrumbs';
 import { AdminSidebar } from '@/components/admin/admin-sidebar';
 import { NotificationsMenu } from '@/components/board/notifications-menu';
+import { ThemeToggle } from '@/components/common/theme-toggle';
 import { UserMenu } from '@/components/common/user-menu';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
@@ -53,6 +54,7 @@ export default function AdminLayout() {
                             </span>
                         </Link>
                     </Button>
+                    <ThemeToggle />
                     <NotificationsMenu />
                     <UserMenu />
                 </header>

@@ -1,6 +1,7 @@
 import { Link } from 'react-router';
 
 import { RoleBadge } from '@/components/admin/role-badge';
+import { ArchivedBadge } from '@/components/common/archived-badge';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { formatDateTime } from '@/lib/dates';
@@ -45,9 +46,7 @@ export function UserClassesCard({
                                 >
                                     {classGroup?.name ?? '…'}
                                 </Link>
-                                {classGroup?.archivedAt && (
-                                    <Badge variant="outline">Archived</Badge>
-                                )}
+                                {classGroup?.archivedAt && <ArchivedBadge />}
                                 <RoleBadge
                                     role={roleByClass.get(membership.classId)}
                                 />

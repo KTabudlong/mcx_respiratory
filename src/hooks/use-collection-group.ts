@@ -11,7 +11,13 @@ import { useEffect, useState } from 'react';
 import { useLoadTimeout } from '@/hooks/use-load-timeout';
 import { db } from '@/lib/firebase';
 import { docData } from '@/lib/firestore-data';
-import type { ClassInvite, ClassMember, JoinRequest, Post } from '@/types';
+import type {
+    ClassInvite,
+    ClassMember,
+    Comment,
+    JoinRequest,
+    Post,
+} from '@/types';
 
 type Snapshot<T> = { key: string; data: T[]; error: Error | null };
 
@@ -114,6 +120,40 @@ export function useRecentPostsBy(uid: string, count: number) {
                 setSnapshot({
                     key,
                     data: snap.docs.map((item) => docData<Post>(item)),
+                    error: null,
+                }),
+            (error) => setSnapshot({ key, data: [], error }),
+        );
+    }, [key, uid, count]);
+
+    const current = snapshot?.key === key ? snapshot : null;
+    const timeout = useLoadTimeout(key, current === null);
+
+    return {
+        data: current?.data ?? [],
+        loading: current === null && timeout === null,
+        error: current?.error ?? timeout,
+    };
+}
+
+// A user's newest comments across every class, deleted ones included
+// (super admins only).
+export function useRecentCommentsBy(uid: string, count: number) {
+    const key = `comments|${uid}|${count}`;
+    const [snapshot, setSnapshot] = useState<Snapshot<Comment> | null>(null);
+
+    useEffect(() => {
+        return onSnapshot(
+            query(
+                collectionGroup(db, 'comments'),
+                where('userId', '==', uid),
+                orderBy('createdAt', 'desc'),
+                limit(count),
+            ),
+            (snap) =>
+                setSnapshot({
+                    key,
+                    data: snap.docs.map((item) => docData<Comment>(item)),
                     error: null,
                 }),
             (error) => setSnapshot({ key, data: [], error }),

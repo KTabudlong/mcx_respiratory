@@ -38,6 +38,16 @@ describe('adminCrumbs', () => {
         ).toEqual(['Admin', 'RT', 'Moderation', 'Exam moved']);
     });
 
+    it('names a student opened from the roster', () => {
+        expect(
+            adminCrumbs(
+                '/admin/classes/c1/students/u1',
+                { c1: 'RT', u1: 'Ana Cruz' },
+                false,
+            ).map((crumb) => crumb.label),
+        ).toEqual(['Admin', 'RT', 'Students', 'Ana Cruz']);
+    });
+
     it('shows a placeholder until a name loads', () => {
         expect(adminCrumbs('/admin/users/u1', {}, true).at(-1)).toEqual({
             label: '…',

@@ -1,5 +1,5 @@
 import { Minus, Plus } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
 import { CommentActions } from '@/components/comments/comment-actions';
@@ -38,6 +38,8 @@ export type ThreadContext = {
     classOpen: boolean;
     authors: Map<string, UserProfile>;
     myVotes: Map<string, VoteValue>;
+    // From ?comment= on the post URL (Activity / deep links).
+    focusCommentId?: string | null;
     onError: (message: string) => void;
 };
 
@@ -48,12 +50,30 @@ function CommentItem({
     node: CommentNode;
     context: ThreadContext;
 }) {
+    const itemRef = useRef<HTMLLIElement>(null);
+    const focused = context.focusCommentId === node.id;
     const [collapsed, setCollapsed] = useState(false);
     const [replying, setReplying] = useState(false);
     const [editing, setEditing] = useState(false);
     const [confirming, setConfirming] = useState(false);
     const [restoring, setRestoring] = useState(false);
     const { comment } = node;
+
+    useEffect(() => {
+        if (!focused) {
+            return;
+        }
+
+        // Wait a tick so the thread has laid out under the post body.
+        const timer = window.setTimeout(() => {
+            itemRef.current?.scrollIntoView({
+                behavior: 'smooth',
+                block: 'center',
+            });
+        }, 100);
+
+        return () => window.clearTimeout(timer);
+    }, [focused]);
 
     async function handleRestore(tombstone: Comment) {
         setRestoring(true);
@@ -72,7 +92,15 @@ function CommentItem({
     const votePath = commentPath(context.classId, context.postId, node.id);
 
     return (
-        <li className="grid gap-1">
+        <li
+            ref={itemRef}
+            id={`comment-${node.id}`}
+            className={cn(
+                'grid gap-1 rounded-md',
+                focused &&
+                    'bg-amber-50 ring-2 ring-amber-400 dark:bg-amber-950/40',
+            )}
+        >
             <div className="flex items-start gap-1">
                 <Button
                     variant="ghost"
@@ -84,7 +112,7 @@ function CommentItem({
                 >
                     {collapsed ? <Plus aria-hidden /> : <Minus aria-hidden />}
                 </Button>
-                <div className="grid min-w-0 flex-1 gap-1 pt-0.5">
+                <div className="grid min-w-0 flex-1 gap-1 p-1 pt-0.5">
                     {comment ? (
                         <CommentMeta
                             comment={comment}

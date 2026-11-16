@@ -166,6 +166,13 @@ export const router = createHashRouter([
                                                         import('@/pages/admin/classes/students'),
                                                 ),
                                             },
+                                            {
+                                                path: ':userId',
+                                                ...lazyPage(
+                                                    () =>
+                                                        import('@/pages/admin/classes/student-show'),
+                                                ),
+                                            },
                                         ],
                                     },
                                     {

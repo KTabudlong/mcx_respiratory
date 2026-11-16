@@ -1,7 +1,7 @@
 import { ChevronRight } from 'lucide-react';
 import { Link } from 'react-router';
 
-import { Badge } from '@/components/ui/badge';
+import { ArchivedBadge } from '@/components/common/archived-badge';
 import type { ClassGroup } from '@/types';
 
 // Links into each class's admin overview.
@@ -11,7 +11,7 @@ export function AdminClassList({ classes }: { classes: ClassGroup[] }) {
     }
 
     return (
-        <ul className="divide-y rounded-md border">
+        <ul className="divide-y rounded-md border bg-card">
             {classes.map((classGroup) => (
                 <li key={classGroup.id}>
                     <Link
@@ -21,9 +21,7 @@ export function AdminClassList({ classes }: { classes: ClassGroup[] }) {
                         <span className="min-w-0 flex-1 truncate font-medium">
                             {classGroup.name}
                         </span>
-                        {classGroup.archivedAt && (
-                            <Badge variant="outline">Archived</Badge>
-                        )}
+                        {classGroup.archivedAt && <ArchivedBadge />}
                         <ChevronRight
                             className="size-4 text-muted-foreground"
                             aria-hidden

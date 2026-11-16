@@ -1,7 +1,7 @@
 import { Pin, Users } from 'lucide-react';
 import { Link } from 'react-router';
 
-import { Badge } from '@/components/ui/badge';
+import { ArchivedBadge } from '@/components/common/archived-badge';
 import {
     Card,
     CardContent,
@@ -27,9 +27,7 @@ export function ClassSidebar({
                 <CardHeader>
                     <CardTitle className="flex flex-wrap items-center gap-2">
                         {classGroup.name}
-                        {classGroup.archivedAt && (
-                            <Badge variant="outline">Archived</Badge>
-                        )}
+                        {classGroup.archivedAt && <ArchivedBadge />}
                     </CardTitle>
                     <CardDescription>
                         {classGroup.startYear}–{classGroup.endYear ?? ''}

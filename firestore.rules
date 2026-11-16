@@ -261,7 +261,8 @@ service cloud.firestore {
     // Created in the same batch as the change itself, and must describe it:
     // added (membership created by me), role_changed (role differs after the
     // batch), removed (membership deleted). roleName is the role after the
-    // change. Only the owner reads, marks read, or clears them.
+    // change. The owner reads / marks read / clears them; super admins also
+    // read them for the user-page activity timeline.
     function notificationMatches(classId, uid, data) {
       let member = memberPath(classId, uid);
       // added: createdAt == request.time means the membership is created in
@@ -282,7 +283,8 @@ service cloud.firestore {
     }
 
     match /users/{uid}/notifications/{notificationId} {
-      allow read, delete: if isOwner(uid);
+      allow read: if isOwner(uid) || isSuperAdmin();
+      allow delete: if isOwner(uid);
 
       allow create: if isActive()
         && !isOwner(uid)

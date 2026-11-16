@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
     commentHits,
+    commentSubtree,
     matchedThreads,
     moderationRows,
     threadOrder,
@@ -24,6 +25,35 @@ describe('threadOrder', () => {
                 comment('a1x', ['a', 'a1'], 5),
             ]).map((item) => item.id),
         ).toEqual(['a', 'a0', 'a1', 'a1x', 'b', 'b1']);
+    });
+});
+
+describe('commentSubtree', () => {
+    const comment = (id: string, ancestorIds: string[], at: number) =>
+        ({ id, ancestorIds, createdAt: Timestamp.fromMillis(at) }) as Comment;
+
+    it('returns the root and its descendants only', () => {
+        const a = comment('a', [], 1);
+        const tree = [
+            a,
+            comment('a0', ['a'], 2),
+            comment('a1', ['a'], 3),
+            comment('a1x', ['a', 'a1'], 4),
+            comment('b', [], 5),
+            comment('b1', ['b'], 6),
+        ];
+
+        expect(commentSubtree(tree, a).map((item) => item.id)).toEqual([
+            'a',
+            'a0',
+            'a1',
+            'a1x',
+        ]);
+        expect(
+            commentSubtree(tree, comment('a1', ['a'], 3)).map(
+                (item) => item.id,
+            ),
+        ).toEqual(['a1', 'a1x']);
     });
 });
 
