@@ -16,7 +16,7 @@
         "lint": "eslint . --fix",
         "lint:check": "eslint .",
         "types:check": "tsc --noEmit",
-        "test": "vitest run"
+        "test": "vitest run --mode production"
     },
     "dependencies": {
         "@tiptap/pm": "^3.32.0",
