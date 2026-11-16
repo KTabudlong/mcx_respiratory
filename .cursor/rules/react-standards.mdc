@@ -1,0 +1,50 @@
+---
+description: React component, hook, and data-layer standards (SOLID applied to React) for src/
+globs:
+  - src/**/*.ts
+  - src/**/*.tsx
+alwaysApply: false
+---
+
+# React standards (project)
+
+Apply SOLID in React terms — composition and hooks, not classes.
+
+## Single responsibility — layers
+
+- **Pages** (`src/pages/`) compose layouts, components, and hooks. Little logic of their own.
+- **Components** (`src/components/<area>/`) render UI from props. They never import the Firebase SDK.
+- **Hooks** (`src/hooks/`) own Firestore reads (`onSnapshot`) and writes, and expose `{ data, loading, error }`-style results plus action functions.
+- **Plain logic** (`src/lib/`) has no React: permission checks, comment-tree building, formatting. Unit-test it.
+- Split a file when it does two jobs or grows past ~150 lines.
+
+## Open/closed — extend by composition
+
+- Extend through props, `children`, and `cva` variants instead of adding special cases inside a component.
+- Prefer a new small component over a growing list of boolean "mode" props.
+
+## Liskov — wrappers behave like what they wrap
+
+- Wrappers around native elements accept and forward their props (`React.ComponentProps<'button'>`, spread `...props`), as shadcn components do.
+
+## Interface segregation — small props
+
+- Pass what the component needs. A domain object (`post`) is fine; avoid passing unrelated context "just in case".
+- Callbacks are named for the event: `onSubmit`, `onDelete`.
+
+## Dependency inversion — depend on hooks, not Firebase
+
+- Components depend on hooks (`usePosts`) and context (`useAuth`), so the data source can change and tests can mock the hook.
+- Firestore paths and collection names live in `src/lib/` or the hooks, not scattered through components.
+
+## React basics
+
+- Function components only; default export for pages, named exports for shared components unless the folder already does otherwise.
+- Follow the Rules of Hooks; custom hooks start with `use`.
+- Derive values during render instead of copying props/state into more state. No `useEffect` just to sync derived data.
+- Every `onSnapshot` listener is unsubscribed in the effect cleanup.
+- Stable `key`s from document IDs, never array indexes for dynamic lists.
+- Every data-driven view handles **loading**, **empty**, and **error** states.
+- SPA navigation only: `<Link>` / `useNavigate()` for in-app routes; `<a href>` only for external links (with `target="_blank" rel="noreferrer"`).
+- Semantic HTML first (`button`, `form`, `label`, `nav`); keyboard-accessible interactions.
+- UI permission checks are convenience only — the same check must exist in `firestore.rules`.
