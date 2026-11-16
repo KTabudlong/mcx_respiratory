@@ -1,0 +1,941 @@
+rules_version = '2';
+
+// The backend contract (like Laravel policies + Form Requests). Every UI
+// permission check must also exist here.
+//
+// Hierarchy: super admin (admins/{uid}) → class → the class's own roles.
+// Everything a person can do inside a class comes from their one role in
+// that class (classes/{c}/members/{uid}.roleId → classes/{c}/roles/{roleId}).
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---------- identity ----------
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    // Keep the domain list in sync with ALLOWED_EMAIL_DOMAINS in src/lib/config.ts.
+    function isMember() {
+      return signedIn()
+        && request.auth.token.email_verified == true
+        && request.auth.token.email.lower().matches('^[^@]+@(student[.])?ccc[.]edu$');
+    }
+
+    function docPath(collectionName, id) {
+      return /databases/$(database)/documents/$(collectionName)/$(id);
+    }
+
+    function myPath() {
+      return docPath('users', request.auth.uid);
+    }
+
+    // Verified member with a profile that isn't soft-deleted. One get (no
+    // exists) to stay under the per-request document access limits; a
+    // missing profile makes get() fail, which denies.
+    function isActive() {
+      return isMember() && get(myPath()).data.deletedAt == null;
+    }
+
+    function isSuperAdmin() {
+      return isActive() && exists(docPath('admins', request.auth.uid));
+    }
+
+    // ---------- class helpers ----------
+
+    function memberPath(classId, uid) {
+      return /databases/$(database)/documents/classes/$(classId)/members/$(uid);
+    }
+
+    function rolePath(classId, roleId) {
+      return /databases/$(database)/documents/classes/$(classId)/roles/$(roleId);
+    }
+
+    function isClassMember(classId) {
+      return isActive() && exists(memberPath(classId, request.auth.uid));
+    }
+
+    function myRole(classId) {
+      return get(rolePath(classId, get(memberPath(classId, request.auth.uid)).data.roleId)).data;
+    }
+
+    function inClass(classId) {
+      return isSuperAdmin() || isClassMember(classId);
+    }
+
+    // Permission from my role in this class. Super admins can do everything.
+    function canIn(classId, permission) {
+      return isSuperAdmin()
+        || (isClassMember(classId) && permission in myRole(classId).permissions);
+    }
+
+    // Role hierarchy: you only manage roles (and people holding roles) ranked
+    // strictly below your own role. Super admins outrank everything.
+    function outranks(classId, rank) {
+      return isSuperAdmin()
+        || (isClassMember(classId) && rank < myRole(classId).rank);
+    }
+
+    function roleRank(classId, roleId) {
+      return get(rolePath(classId, roleId)).data.rank;
+    }
+
+    // No escalation: a role can only be given permissions you have yourself.
+    function canGrant(classId, permissions) {
+      return isSuperAdmin()
+        || (isClassMember(classId) && permissions.hasOnly(myRole(classId).permissions));
+    }
+
+    // ----- votes -----
+    //
+    // A vote lives at <post or comment>/votes/{uid} with value 1 or -1 (no
+    // doc = no vote). The post / comment keeps a running `score`, changed in
+    // the same batch by exactly the voter's change, so nobody can edit a
+    // score without voting, and nobody can touch someone else's vote.
+
+    // How much this batch changes the vote at `votePath` (-2 to 2).
+    function voteChange(votePath) {
+      return (existsAfter(votePath) ? getAfter(votePath).data.value : 0)
+        - (exists(votePath) ? get(votePath).data.value : 0);
+    }
+
+    // The target's score after the batch = before + `change`.
+    function scoreMovesBy(target, change) {
+      return getAfter(target).data.get('score', 0)
+        == get(target).data.get('score', 0) + change;
+    }
+
+    function isValidVote(data, uid, classId) {
+      return data.keys().hasOnly(['userId', 'classId', 'value'])
+        && data.userId == uid
+        && data.classId == classId
+        && data.value in [1, -1];
+    }
+
+    // "My votes" listener: a collection-group query on votes filtered by
+    // userId (and classId). Each person reads only their own votes.
+    match /{path=**}/votes/{uid} {
+      allow read: if request.auth != null
+        && resource.data.userId == request.auth.uid;
+    }
+
+    // ---------- validation helpers ----------
+
+    // Keep in sync with MAX_NAME_LENGTH in src/lib/names.ts.
+    function isValidName(name) {
+      return name is string && name.trim().size() > 0 && name.size() <= 50;
+    }
+
+    function isSchoolEmail(email) {
+      return email is string
+        && email == email.lower()
+        && email.matches('^[^@]+@(student[.])?ccc[.]edu$');
+    }
+
+    function isValidPhone(phone) {
+      return phone is string
+        && (phone == '' || phone.matches('^[+][1-9][0-9]{7,14}$'));
+    }
+
+    function isStringList(value) {
+      return value is list && value.size() <= 50;
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function changedKeys() {
+      return request.resource.data.diff(resource.data).affectedKeys();
+    }
+
+    // The phone copy on memberships / join requests must match the owner's
+    // contact doc (after this write, so profile save can update both).
+    function myPhoneAfter() {
+      return getAfter(docPath('userContacts', request.auth.uid)).data.phone;
+    }
+
+    // Same for the SMS consent copy ("Text selected" only texts opted-in
+    // members). Consent can't be granted by anyone but the student.
+    function mySmsOptInAfter() {
+      return getAfter(docPath('userContacts', request.auth.uid)).data.smsOptIn;
+    }
+
+    function myEmail() {
+      return request.auth.token.email.lower();
+    }
+
+    // Class invites for existing accounts are keyed by school email.
+    function invitePath(classId, email) {
+      return /databases/$(database)/documents/classes/$(classId)/invites/$(email);
+    }
+
+    // ---------- super admins ----------
+
+    match /admins/{uid} {
+      allow read: if isOwner(uid) || isSuperAdmin();
+      // The first super admin is created by hand (console / MCP); after that
+      // super admins promote active accounts from the user page.
+      allow create: if isSuperAdmin()
+        && exists(docPath('users', uid))
+        && get(docPath('users', uid)).data.deletedAt == null
+        && incoming().keys().hasOnly(['createdAt'])
+        && incoming().createdAt == request.time;
+      allow delete: if isSuperAdmin() && !isOwner(uid);
+      allow update: if false;
+    }
+
+    // ---------- users ----------
+
+    match /users/{uid} {
+      // Any active account can fetch one profile by ID (names for the
+      // client-side join); only super admins list everyone.
+      allow get: if isOwner(uid) || isActive();
+      allow list: if isSuperAdmin();
+
+      // Self sign-up: own doc only, created pending (no memberships).
+      allow create: if isMember()
+        && isOwner(uid)
+        && incoming().keys().hasOnly([
+          'firstName', 'lastName', 'email', 'createdBy', 'createdInClassId',
+          'createdAt', 'updatedAt', 'deletedAt'
+        ])
+        && isValidName(incoming().firstName)
+        && isValidName(incoming().lastName)
+        && incoming().email == request.auth.token.email.lower()
+        && incoming().createdBy == null
+        && incoming().createdInClassId == null
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && incoming().deletedAt == null;
+
+      // Invited account: created by someone with students.manage in a class,
+      // in the same batch as the membership in that class (the members rules
+      // check the role rank). createdBy / createdInClassId are the audit trail.
+      allow create: if isActive()
+        && !isOwner(uid)
+        && incoming().keys().hasOnly([
+          'firstName', 'lastName', 'email', 'createdBy', 'createdInClassId',
+          'createdAt', 'updatedAt', 'deletedAt'
+        ])
+        && isValidName(incoming().firstName)
+        && isValidName(incoming().lastName)
+        && isSchoolEmail(incoming().email)
+        && incoming().createdBy == request.auth.uid
+        && incoming().createdInClassId is string
+        && canIn(incoming().createdInClassId, 'students.manage')
+        && existsAfter(memberPath(incoming().createdInClassId, uid))
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && incoming().deletedAt == null;
+
+      // Self-update: names only, and not while deactivated.
+      allow update: if isMember()
+        && isOwner(uid)
+        && resource.data.deletedAt == null
+        && changedKeys().hasOnly(['firstName', 'lastName', 'updatedAt'])
+        && isValidName(incoming().firstName)
+        && isValidName(incoming().lastName)
+        && incoming().updatedAt == request.time;
+
+      // Super admin: names and deactivate/restore (a person can be in several
+      // classes, so class roles can't lock them out of the whole app).
+      allow update: if isSuperAdmin()
+        && changedKeys().hasOnly(['firstName', 'lastName', 'updatedAt', 'deletedAt'])
+        && isValidName(incoming().firstName)
+        && isValidName(incoming().lastName)
+        && (!('deletedAt' in changedKeys())
+          || (!isOwner(uid)
+            && (incoming().deletedAt == null || incoming().deletedAt == request.time)))
+        && incoming().updatedAt == request.time;
+
+      allow delete: if false;
+    }
+
+    // ---------- notifications (class changes, written by whoever made them) ----------
+    //
+    // Created in the same batch as the change itself, and must describe it:
+    // added (membership created by me), role_changed (role differs after the
+    // batch), removed (membership deleted). roleName is the role after the
+    // change. The owner reads / marks read / clears them; super admins also
+    // read them for the user-page activity timeline.
+    function notificationMatches(classId, uid, data) {
+      let member = memberPath(classId, uid);
+      // added: createdAt == request.time means the membership is created in
+      // this batch (fewer document reads than exists + existsAfter).
+      return (data.type == 'added'
+          && getAfter(member).data.createdAt == request.time
+          && getAfter(member).data.addedBy == request.auth.uid
+          && data.roleName == getAfter(rolePath(classId, getAfter(member).data.roleId)).data.name)
+        || (data.type == 'role_changed'
+          && exists(member)
+          && existsAfter(member)
+          && getAfter(member).data.roleId != get(member).data.roleId
+          && data.roleName == getAfter(rolePath(classId, getAfter(member).data.roleId)).data.name)
+        || (data.type == 'removed'
+          && exists(member)
+          && !existsAfter(member)
+          && data.roleName == '');
+    }
+
+    match /users/{uid}/notifications/{notificationId} {
+      allow read: if isOwner(uid) || isSuperAdmin();
+      allow delete: if isOwner(uid);
+
+      allow create: if isActive()
+        && !isOwner(uid)
+        && incoming().keys().hasOnly(['type', 'classId', 'roleName', 'actorId', 'read', 'createdAt'])
+        && incoming().type in ['added', 'role_changed', 'removed']
+        && incoming().classId is string
+        && incoming().roleName is string
+        && incoming().actorId == request.auth.uid
+        && incoming().read == false
+        && incoming().createdAt == request.time
+        && notificationMatches(incoming().classId, uid, incoming());
+
+      allow update: if isOwner(uid)
+        && changedKeys().hasOnly(['read'])
+        && incoming().read == true;
+    }
+
+    // ---------- private contact info (source of truth + consent) ----------
+
+    match /userContacts/{uid} {
+      allow read: if isOwner(uid) || isSuperAdmin();
+
+      // Only the owner writes it, so SMS and email consent always come from
+      // the student. Email consent is optional (older docs don't have it).
+      allow create, update: if isMember()
+        && isOwner(uid)
+        && (!exists(myPath()) || get(myPath()).data.deletedAt == null)
+        && incoming().keys().hasOnly([
+          'phone', 'smsOptIn', 'smsOptInAt', 'emailOptIn', 'emailOptInAt', 'updatedAt'
+        ])
+        && incoming().keys().hasAll(['phone', 'smsOptIn', 'smsOptInAt', 'updatedAt'])
+        && isValidPhone(incoming().phone)
+        && incoming().smsOptIn is bool
+        && ((incoming().smsOptIn == true
+            && incoming().phone != ''
+            && incoming().smsOptInAt is timestamp)
+          || (incoming().smsOptIn == false
+            && incoming().smsOptInAt == null))
+        && incoming().get('emailOptIn', false) is bool
+        && ((incoming().get('emailOptIn', false) == true
+            && incoming().emailOptInAt is timestamp)
+          || (incoming().get('emailOptIn', false) == false
+            && incoming().get('emailOptInAt', null) == null))
+        && incoming().updatedAt == request.time;
+
+      allow delete: if false;
+    }
+
+    // ---------- collection-group queries ----------
+
+    // "My classes" / "my join requests" filter on userId == my uid; super
+    // admins can query every class at once.
+    match /{path=**}/members/{memberId} {
+      allow read: if (isActive() && resource.data.userId == request.auth.uid)
+        || isSuperAdmin();
+    }
+
+    match /{path=**}/joinRequests/{requestId} {
+      allow read: if (isActive() && resource.data.userId == request.auth.uid)
+        || isSuperAdmin();
+    }
+
+    // "My invites" filters on email == my school email. Super admins list
+    // every class's invites (why an account is still pending).
+    match /{path=**}/invites/{email} {
+      allow read: if (isMember() && resource.data.email == myEmail())
+        || isSuperAdmin();
+    }
+
+    // One user's posts / comments across every class (super admin user page).
+    match /{path=**}/posts/{postId} {
+      allow read: if isSuperAdmin();
+    }
+
+    match /{path=**}/comments/{commentId} {
+      allow read: if isSuperAdmin();
+    }
+
+    // ---------- classes (archived, never deleted) ----------
+
+    // Keep in sync with validateClass() in src/lib/classes.ts.
+    function hasValidClassInfo(data) {
+      return data.name is string
+        && data.name.trim().size() > 0
+        && data.name.size() <= 80
+        && data.startYear is int
+        && data.startYear >= 2000
+        && data.startYear <= 2100
+        && (data.endYear == null
+          || (data.endYear is int && data.endYear >= data.startYear && data.endYear <= 2100));
+    }
+
+    function isValidClass(data) {
+      return data.keys().hasOnly([
+          'name', 'startYear', 'endYear', 'archivedAt', 'createdAt', 'updatedAt'
+        ])
+        && hasValidClassInfo(data);
+    }
+
+    // ---------- class requests (a student asks to start a class) ----------
+    //
+    // One open request per person (the doc ID is their uid). The super admin
+    // approves (creates the class with the requester as President, then
+    // deletes this) or rejects (deletes it).
+    match /classRequests/{uid} {
+      allow read: if isOwner(uid) || isSuperAdmin();
+
+      allow create: if isActive()
+        && isOwner(uid)
+        && incoming().keys().hasOnly([
+          'userId', 'name', 'startYear', 'endYear', 'note', 'createdAt'
+        ])
+        && incoming().userId == uid
+        && hasValidClassInfo(incoming())
+        && incoming().note is string
+        && incoming().note.size() <= 500
+        && incoming().createdAt == request.time;
+
+      allow delete: if isOwner(uid) || isSuperAdmin();
+      allow update: if false;
+    }
+
+    function isValidRole(data) {
+      return data.keys().hasOnly([
+          'name', 'color', 'rank', 'permissions', 'createdAt', 'updatedAt'
+        ])
+        && data.name is string
+        && data.name.trim().size() > 0
+        && data.name.size() <= 40
+        && data.color is string
+        && data.color.matches('^#[0-9a-fA-F]{6}$')
+        && data.rank is int
+        && data.rank >= 1
+        && data.rank <= 1000
+        && isStringList(data.permissions);
+    }
+
+    match /classes/{classId} {
+      // Verified accounts can read class names (sign-up's class picker runs
+      // before the profile exists).
+      allow read: if isMember();
+
+      allow create: if isSuperAdmin()
+        && isValidClass(incoming())
+        && incoming().archivedAt == null
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+
+      allow update: if isSuperAdmin()
+        && isValidClass(incoming())
+        && incoming().createdAt == resource.data.createdAt
+        && (!('archivedAt' in changedKeys())
+          || incoming().archivedAt == null
+          || incoming().archivedAt == request.time)
+        && incoming().updatedAt == request.time;
+
+      allow delete: if false;
+
+      // ----- the class's own roles (per-class master table) -----
+
+      match /roles/{roleId} {
+        allow read: if inClass(classId);
+
+        allow create: if canIn(classId, 'roles.manage')
+          && existsAfter(/databases/$(database)/documents/classes/$(classId))
+          && isValidRole(incoming())
+          && outranks(classId, incoming().rank)
+          && canGrant(classId, incoming().permissions)
+          && incoming().createdAt == request.time
+          && incoming().updatedAt == request.time;
+
+        allow update: if canIn(classId, 'roles.manage')
+          && isValidRole(incoming())
+          && outranks(classId, resource.data.rank)
+          && outranks(classId, incoming().rank)
+          && canGrant(classId, incoming().permissions)
+          && incoming().createdAt == resource.data.createdAt
+          && incoming().updatedAt == request.time;
+
+        // The UI blocks deleting a role that members still hold.
+        allow delete: if canIn(classId, 'roles.manage')
+          && outranks(classId, resource.data.rank);
+      }
+
+      // ----- members: the class ↔ user pivot, one role per person -----
+
+      match /members/{memberId} {
+        // Everyone in the class sees the roster, including phone numbers.
+        allow read: if inClass(classId);
+
+        // Approve a join request or add someone. Foreign keys: class, user
+        // (existsAfter: invited accounts are created in the same batch) and
+        // role. Phone and SMS consent are empty / false or copied from their
+        // join request or their contact doc (super admins adding an existing
+        // account).
+        allow create: if canIn(classId, 'students.manage')
+          && incoming().keys().hasOnly([
+            'userId', 'roleId', 'phone', 'smsOptIn', 'addedBy', 'createdAt', 'updatedAt'
+          ])
+          && incoming().get('smsOptIn', false) is bool
+          && (incoming().get('smsOptIn', false) == false
+            || (incoming().smsOptIn == true
+              && (get(/databases/$(database)/documents/classes/$(classId)/joinRequests/$(memberId)).data.get('smsOptIn', false) == true
+                || get(docPath('userContacts', memberId)).data.smsOptIn == true)))
+          && incoming().userId == memberId
+          && incoming().addedBy == request.auth.uid
+          && existsAfter(/databases/$(database)/documents/classes/$(classId))
+          && existsAfter(docPath('users', memberId))
+          // getAfter fails (denies) if the role doesn't exist.
+          && outranks(classId, getAfter(rolePath(classId, incoming().roleId)).data.rank)
+          && (incoming().phone == ''
+            || incoming().phone == get(/databases/$(database)/documents/classes/$(classId)/joinRequests/$(memberId)).data.phone
+            || incoming().phone == get(docPath('userContacts', memberId)).data.phone)
+          && incoming().createdAt == request.time
+          && incoming().updatedAt == request.time;
+
+        // Accept an invite: the invitee adds themselves with the invited role
+        // and their own phone / SMS consent, deleting the invite in the same
+        // batch. addedBy stays the person who invited them.
+        allow create: if isActive()
+          && isOwner(memberId)
+          && exists(invitePath(classId, myEmail()))
+          && !existsAfter(invitePath(classId, myEmail()))
+          && get(/databases/$(database)/documents/classes/$(classId)).data.archivedAt == null
+          && incoming().keys().hasOnly([
+            'userId', 'roleId', 'phone', 'smsOptIn', 'addedBy', 'createdAt', 'updatedAt'
+          ])
+          && incoming().userId == memberId
+          && incoming().roleId == get(invitePath(classId, myEmail())).data.roleId
+          && incoming().addedBy == get(invitePath(classId, myEmail())).data.invitedBy
+          && exists(rolePath(classId, incoming().roleId))
+          && incoming().phone == myPhoneAfter()
+          && incoming().get('smsOptIn', false) is bool
+          && (incoming().get('smsOptIn', false) == false || mySmsOptInAfter() == true)
+          && incoming().createdAt == request.time
+          && incoming().updatedAt == request.time;
+
+        // Change someone's role: both their current and new role must rank
+        // below yours.
+        allow update: if canIn(classId, 'students.manage')
+          && changedKeys().hasOnly(['roleId', 'updatedAt'])
+          && exists(rolePath(classId, incoming().roleId))
+          && outranks(classId, roleRank(classId, resource.data.roleId))
+          && outranks(classId, roleRank(classId, incoming().roleId))
+          && incoming().updatedAt == request.time;
+
+        // The member keeps their own phone / SMS consent copy in sync with
+        // userContacts.
+        allow update: if isActive()
+          && isOwner(memberId)
+          && changedKeys().hasOnly(['phone', 'smsOptIn', 'updatedAt'])
+          && incoming().phone == myPhoneAfter()
+          && incoming().get('smsOptIn', false) is bool
+          && (incoming().get('smsOptIn', false) == false || mySmsOptInAfter() == true)
+          && incoming().updatedAt == request.time;
+
+        // Remove from the class (their posts stay).
+        allow delete: if canIn(classId, 'students.manage')
+          && outranks(classId, roleRank(classId, resource.data.roleId));
+      }
+
+      // ----- join requests (sign-up's class picker) -----
+
+      match /joinRequests/{requestId} {
+        allow read: if isOwner(requestId) || canIn(classId, 'students.manage');
+
+        // The requester's own users doc may be created in the same batch.
+        allow create: if isMember()
+          && isOwner(requestId)
+          && existsAfter(myPath())
+          && getAfter(myPath()).data.deletedAt == null
+          && !exists(memberPath(classId, requestId))
+          && get(/databases/$(database)/documents/classes/$(classId)).data.archivedAt == null
+          && incoming().keys().hasOnly(['userId', 'phone', 'smsOptIn', 'createdAt'])
+          && incoming().userId == requestId
+          && incoming().phone == myPhoneAfter()
+          && incoming().get('smsOptIn', false) is bool
+          && (incoming().get('smsOptIn', false) == false || mySmsOptInAfter() == true)
+          && incoming().createdAt == request.time;
+
+        // Cancel (requester), reject or approve (students.manage).
+        allow delete: if isOwner(requestId) || canIn(classId, 'students.manage');
+        allow update: if false;
+      }
+
+      // ----- invites (an existing account asked to join; they accept) -----
+      //
+      // The doc ID is the invitee's school email (lowercase). roleName is a
+      // copy because the invitee can't read the class's roles yet.
+      match /invites/{email} {
+        allow read: if canIn(classId, 'students.manage')
+          || (isMember() && email == myEmail());
+
+        allow create: if canIn(classId, 'students.manage')
+          && get(/databases/$(database)/documents/classes/$(classId)).data.archivedAt == null
+          && incoming().keys().hasOnly(['email', 'roleId', 'roleName', 'invitedBy', 'createdAt'])
+          && incoming().email == email
+          && isSchoolEmail(email)
+          && exists(rolePath(classId, incoming().roleId))
+          && incoming().roleName == get(rolePath(classId, incoming().roleId)).data.name
+          && outranks(classId, roleRank(classId, incoming().roleId))
+          && incoming().invitedBy == request.auth.uid
+          && incoming().createdAt == request.time;
+
+        // Cancel (students.manage), or decline / accept (the invitee).
+        allow delete: if canIn(classId, 'students.manage')
+          || (isMember() && email == myEmail());
+        allow update: if false;
+      }
+
+      // ----- posts (soft-deleted, never hard-deleted) -----
+
+      match /posts/{postId} {
+        function classIsOpen() {
+          return get(/databases/$(database)/documents/classes/$(classId)).data.archivedAt == null;
+        }
+
+        function isAuthor() {
+          return resource.data.userId == request.auth.uid;
+        }
+
+        // Rules can't loop over a list, so each link's shape is checked in
+        // the app (and links render as http(s) only). HTML bodies can't be
+        // sanitized here either: the app sanitizes them on every render.
+        // Keep the limits in sync with src/lib/posts.ts / post-images.ts.
+        function hasValidContent(data) {
+          return data.title is string
+            && data.title.trim().size() > 0
+            && data.title.size() <= 200
+            && data.body is string
+            && data.body.size() <= 20000
+            && data.get('format', 'text') in ['text', 'html']
+            && data.get('imageIds', []) is list
+            && data.get('imageIds', []).size() <= 3
+            && data.links is list
+            && data.links.size() <= 10;
+        }
+
+        // Feed queries filter deletedAt == null; soft-deleted posts are
+        // visible to their author and moderators.
+        allow read: if inClass(classId)
+          && (resource.data.deletedAt == null
+            || isAuthor()
+            || canIn(classId, 'posts.delete_any'));
+
+        allow create: if canIn(classId, 'posts.create')
+          && classIsOpen()
+          && incoming().keys().hasOnly([
+            'userId', 'title', 'body', 'format', 'imageIds', 'links', 'pinned',
+            'score', 'createdAt', 'updatedAt', 'deletedAt'
+          ])
+          && incoming().userId == request.auth.uid
+          && incoming().get('score', 0) == 0
+          && hasValidContent(incoming())
+          && incoming().pinned is bool
+          && (incoming().pinned == false || canIn(classId, 'posts.pin'))
+          && incoming().createdAt == request.time
+          && incoming().updatedAt == request.time
+          && incoming().deletedAt == null;
+
+        // Edit: the author (still in the class) or posts.edit_any, stamped
+        // with who edited (shown on the post). Pinning can ride along only
+        // with posts.pin. Every edit bumps editCount and writes edits/{n} in
+        // the same batch, so the history can't skip an edit.
+        allow update: if resource.data.deletedAt == null
+          && classIsOpen()
+          && ((isAuthor() && inClass(classId)) || canIn(classId, 'posts.edit_any'))
+          && changedKeys().hasOnly([
+            'title', 'body', 'format', 'imageIds', 'links', 'pinned',
+            'editedBy', 'editedAt', 'editCount', 'updatedAt'
+          ])
+          && incoming().editedBy == request.auth.uid
+          && incoming().editedAt == request.time
+          && incoming().editCount == resource.data.get('editCount', 0) + 1
+          && existsAfter(/databases/$(database)/documents/classes/$(classId)/posts/$(postId)/edits/$(string(incoming().editCount)))
+          && hasValidContent(incoming())
+          && (!('pinned' in changedKeys()) || canIn(classId, 'posts.pin'))
+          && incoming().pinned is bool
+          && incoming().updatedAt == request.time;
+
+        // Pin / unpin.
+        allow update: if resource.data.deletedAt == null
+          && canIn(classId, 'posts.pin')
+          && changedKeys().hasOnly(['pinned', 'updatedAt'])
+          && incoming().pinned is bool
+          && incoming().updatedAt == request.time;
+
+        // Soft delete: the author (still in the class) or posts.delete_any.
+        allow update: if resource.data.deletedAt == null
+          && ((isAuthor() && inClass(classId)) || canIn(classId, 'posts.delete_any'))
+          && changedKeys().hasOnly(['deletedAt', 'updatedAt'])
+          && incoming().deletedAt == request.time
+          && incoming().updatedAt == request.time;
+
+        // Restore: moderators only.
+        allow update: if resource.data.deletedAt != null
+          && canIn(classId, 'posts.delete_any')
+          && changedKeys().hasOnly(['deletedAt', 'updatedAt'])
+          && incoming().deletedAt == null
+          && incoming().updatedAt == request.time;
+
+        // Vote: anyone in the class, on a live post in an open class. Only
+        // the score changes, by exactly the change in your own vote.
+        allow update: if resource.data.deletedAt == null
+          && inClass(classId)
+          && classIsOpen()
+          && changedKeys().hasOnly(['score'])
+          && incoming().score is int
+          && incoming().score == resource.data.get('score', 0)
+            + voteChange(/databases/$(database)/documents/classes/$(classId)/posts/$(postId)/votes/$(request.auth.uid));
+
+        allow delete: if false;
+
+        // ----- edit history (who, when, which parts) -----
+        //
+        // edits/{n} matches the post's editCount after the batch, so each
+        // number is written once, by the editor, with the edit itself.
+        match /edits/{editId} {
+          function postPath() {
+            return /databases/$(database)/documents/classes/$(classId)/posts/$(postId);
+          }
+
+          allow read: if inClass(classId);
+
+          allow create: if inClass(classId)
+            && editId == string(getAfter(postPath()).data.editCount)
+            && getAfter(postPath()).data.editedBy == request.auth.uid
+            && getAfter(postPath()).data.editedAt == request.time
+            && incoming().keys().hasOnly(['editorId', 'editedAt', 'changes'])
+            && incoming().editorId == request.auth.uid
+            && incoming().editedAt == request.time
+            && incoming().changes is list
+            && incoming().changes.hasOnly(['title', 'body', 'links', 'photos']);
+
+          allow update, delete: if false;
+        }
+
+        // ----- votes (see the votes helpers at the top) -----
+        match /votes/{uid} {
+          function postPath() {
+            return /databases/$(database)/documents/classes/$(classId)/posts/$(postId);
+          }
+
+          function canVote() {
+            return isOwner(uid)
+              && inClass(classId)
+              && classIsOpen()
+              && get(postPath()).data.deletedAt == null;
+          }
+
+          allow read: if isOwner(uid);
+
+          allow create: if canVote()
+            && isValidVote(incoming(), uid, classId)
+            && scoreMovesBy(postPath(), incoming().value);
+
+          allow update: if canVote()
+            && isValidVote(incoming(), uid, classId)
+            && scoreMovesBy(postPath(), incoming().value - resource.data.value);
+
+          allow delete: if canVote()
+            && scoreMovesBy(postPath(), -resource.data.value);
+        }
+
+        // ----- photos (bytes, compressed in the browser) -----
+        //
+        // Written in the same batch as the post (create / edit), which lists
+        // them in imageIds; that's what caps a post at 3. Removed photos are
+        // deleted outright; deleting the post just hides them with it.
+        match /images/{imageId} {
+          function postPath() {
+            return /databases/$(database)/documents/classes/$(classId)/posts/$(postId);
+          }
+
+          function canEditPost(post) {
+            return (post.userId == request.auth.uid && inClass(classId))
+              || canIn(classId, 'posts.edit_any');
+          }
+
+          allow read: if inClass(classId)
+            && (get(postPath()).data.deletedAt == null
+              || get(postPath()).data.userId == request.auth.uid
+              || canIn(classId, 'posts.delete_any'));
+
+          allow create: if classIsOpen()
+            && canEditPost(getAfter(postPath()).data)
+            && getAfter(postPath()).data.deletedAt == null
+            && imageId in getAfter(postPath()).data.get('imageIds', [])
+            && incoming().keys().hasOnly(['userId', 'type', 'data', 'width', 'height', 'createdAt'])
+            && incoming().userId == request.auth.uid
+            && incoming().type in ['image/webp', 'image/jpeg']
+            && incoming().data is bytes
+            && incoming().data.size() <= 700000
+            && incoming().width is int
+            && incoming().height is int
+            && incoming().createdAt == request.time;
+
+          allow delete: if classIsOpen()
+            && canEditPost(get(postPath()).data)
+            && !(imageId in getAfter(postPath()).data.get('imageIds', []));
+
+          allow update: if false;
+        }
+
+        // ----- threaded comments (soft-deleted, never hard-deleted) -----
+        //
+        // parentId is the self foreign key; ancestorIds is the materialized
+        // path (root first), so replies under a deleted comment still render
+        // in place and the depth limit (5 levels) is enforced here.
+        match /comments/{commentId} {
+          function commentPath(id) {
+            return /databases/$(database)/documents/classes/$(classId)/posts/$(postId)/comments/$(id);
+          }
+
+          function isCommentAuthor() {
+            return resource.data.userId == request.auth.uid;
+          }
+
+          function isValidBody(body) {
+            return body is string && body.trim().size() > 0 && body.size() <= 5000;
+          }
+
+          function hasValidParent(data) {
+            return data.ancestorIds is list
+              && data.ancestorIds.size() <= 4
+              && ((data.parentId == null && data.ancestorIds.size() == 0)
+                || (data.parentId is string
+                  && data.ancestorIds.size() > 0
+                  && get(commentPath(data.parentId)).data.deletedAt == null
+                  && get(commentPath(data.parentId)).data.ancestorIds.concat([data.parentId]) == data.ancestorIds));
+          }
+
+          function archivePath() {
+            return /databases/$(database)/documents/classes/$(classId)/posts/$(postId)/comments/$(commentId)/archive/body;
+          }
+
+          // Live comments, and "[deleted]" tombstones (body moved to
+          // archive/body, so body == '') for everyone in the class. Older
+          // deleted comments that still hold their text: author and
+          // moderators only.
+          allow read: if inClass(classId)
+            && (resource.data.deletedAt == null
+              || resource.data.body == ''
+              || isCommentAuthor()
+              || canIn(classId, 'comments.delete_any'));
+
+          // Anyone in the class comments as themselves on a live post.
+          allow create: if inClass(classId)
+            && classIsOpen()
+            && get(/databases/$(database)/documents/classes/$(classId)/posts/$(postId)).data.deletedAt == null
+            && incoming().keys().hasOnly([
+              'userId', 'parentId', 'ancestorIds', 'body', 'score',
+              'createdAt', 'updatedAt', 'deletedAt'
+            ])
+            && incoming().userId == request.auth.uid
+            && incoming().get('score', 0) == 0
+            && isValidBody(incoming().body)
+            && hasValidParent(incoming())
+            && incoming().createdAt == request.time
+            && incoming().updatedAt == request.time
+            && incoming().deletedAt == null;
+
+          // Edit: the author only, still in the class.
+          allow update: if resource.data.deletedAt == null
+            && isCommentAuthor()
+            && inClass(classId)
+            && classIsOpen()
+            && changedKeys().hasOnly(['body', 'updatedAt'])
+            && isValidBody(incoming().body)
+            && incoming().updatedAt == request.time;
+
+          // Soft delete: the author (still in the class) or comments.delete_any.
+          // The text moves to archive/body in the same batch and the comment
+          // keeps an empty body, so it can show as "[deleted]".
+          allow update: if resource.data.deletedAt == null
+            && ((isCommentAuthor() && inClass(classId))
+              || canIn(classId, 'comments.delete_any'))
+            && changedKeys().hasOnly(['deletedAt', 'updatedAt', 'body'])
+            && incoming().body == ''
+            && getAfter(archivePath()).data.body == resource.data.body
+            && incoming().deletedAt == request.time
+            && incoming().updatedAt == request.time;
+
+          // Restore: moderators only. Tombstones get their text back from the
+          // archive (deleted in the same batch); older deleted comments
+          // still hold theirs.
+          allow update: if resource.data.deletedAt != null
+            && canIn(classId, 'comments.delete_any')
+            && incoming().deletedAt == null
+            && incoming().updatedAt == request.time
+            && ((resource.data.body == ''
+                && changedKeys().hasOnly(['deletedAt', 'updatedAt', 'body'])
+                && incoming().body == get(archivePath()).data.body
+                && !existsAfter(archivePath()))
+              || (resource.data.body != ''
+                && changedKeys().hasOnly(['deletedAt', 'updatedAt'])));
+
+          // Vote: like posts, only the score, by your own vote's change.
+          allow update: if resource.data.deletedAt == null
+            && inClass(classId)
+            && classIsOpen()
+            && changedKeys().hasOnly(['score'])
+            && incoming().score is int
+            && incoming().score == resource.data.get('score', 0)
+              + voteChange(/databases/$(database)/documents/classes/$(classId)/posts/$(postId)/comments/$(commentId)/votes/$(request.auth.uid));
+
+          allow delete: if false;
+
+          // A deleted comment's text: the author and moderators only.
+          match /archive/{docId} {
+            allow read: if inClass(classId)
+              && (get(commentPath(commentId)).data.userId == request.auth.uid
+                || canIn(classId, 'comments.delete_any'));
+
+            allow create: if docId == 'body'
+              && inClass(classId)
+              && (get(commentPath(commentId)).data.userId == request.auth.uid
+                || canIn(classId, 'comments.delete_any'))
+              && incoming().keys().hasOnly(['body'])
+              && incoming().body == get(commentPath(commentId)).data.body
+              && getAfter(commentPath(commentId)).data.deletedAt == request.time;
+
+            allow delete: if canIn(classId, 'comments.delete_any')
+              && getAfter(commentPath(commentId)).data.deletedAt == null;
+
+            allow update: if false;
+          }
+
+          match /votes/{uid} {
+            function canVote() {
+              return isOwner(uid)
+                && inClass(classId)
+                && classIsOpen()
+                && get(commentPath(commentId)).data.deletedAt == null;
+            }
+
+            allow read: if isOwner(uid);
+
+            allow create: if canVote()
+              && isValidVote(incoming(), uid, classId)
+              && scoreMovesBy(commentPath(commentId), incoming().value);
+
+            allow update: if canVote()
+              && isValidVote(incoming(), uid, classId)
+              && scoreMovesBy(commentPath(commentId), incoming().value - resource.data.value);
+
+            allow delete: if canVote()
+              && scoreMovesBy(commentPath(commentId), -resource.data.value);
+          }
+        }
+      }
+    }
+  }
+}

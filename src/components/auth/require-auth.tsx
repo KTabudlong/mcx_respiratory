@@ -1,0 +1,70 @@
+import { Navigate, Outlet, useLocation } from 'react-router';
+
+import { FormMessage } from '@/components/common/form-message';
+import { PageLoader } from '@/components/common/page-loader';
+import { Button } from '@/components/ui/button';
+import { useAuth } from '@/hooks/use-auth';
+import { useLogOut } from '@/hooks/use-log-out';
+import { getSignupStep, isApproved } from '@/lib/account-status';
+import { getErrorMessage } from '@/lib/errors';
+
+// UI convenience only — firestore.rules enforce the same checks.
+export function RequireAuth({
+    allowPending = false,
+}: {
+    allowPending?: boolean;
+}) {
+    const {
+        user,
+        emailVerified,
+        profile,
+        contact,
+        memberships,
+        isSuperAdmin,
+        loading,
+        error,
+    } = useAuth();
+    const location = useLocation();
+    const logOut = useLogOut();
+
+    if (loading) {
+        return <PageLoader />;
+    }
+
+    if (!user) {
+        return (
+            <Navigate to="/login" replace state={{ from: location.pathname }} />
+        );
+    }
+
+    if (error) {
+        return (
+            <div className="mx-auto flex w-full max-w-md flex-col gap-4 p-4">
+                <FormMessage message={getErrorMessage(error)} />
+                <Button variant="outline" onClick={() => void logOut()}>
+                    Log out
+                </Button>
+            </div>
+        );
+    }
+
+    const step = getSignupStep({
+        signedIn: true,
+        emailVerified,
+        hasProfile: profile !== null,
+        hasContact: contact !== null,
+    });
+
+    if (step !== 'done') {
+        return <Navigate to="/signup" replace />;
+    }
+
+    if (
+        !allowPending &&
+        !isApproved(profile, memberships.length, isSuperAdmin)
+    ) {
+        return <Navigate to="/pending" replace />;
+    }
+
+    return <Outlet />;
+}

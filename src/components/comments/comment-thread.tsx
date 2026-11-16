@@ -1,0 +1,260 @@
+import { Minus, Plus } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { toast } from 'sonner';
+
+import { CommentActions } from '@/components/comments/comment-actions';
+import { CommentForm } from '@/components/comments/comment-form';
+import { CommentMeta } from '@/components/comments/comment-meta';
+import { RestoreButton } from '@/components/common/action-buttons';
+import { ConfirmDialog } from '@/components/common/confirm-dialog';
+import { VoteButtons } from '@/components/posts/vote-buttons';
+import { Button } from '@/components/ui/button';
+import type { CommentNode } from '@/lib/comment-tree';
+import { countComments } from '@/lib/comment-tree';
+import {
+    createComment,
+    MAX_COMMENT_DEPTH,
+    restoreComment,
+    softDeleteComment,
+    updateComment,
+} from '@/lib/comments';
+import { getErrorMessage } from '@/lib/errors';
+import type { ClassAccess } from '@/lib/permissions';
+import {
+    canRestoreComments,
+    canVoteIn,
+    commentAbilities,
+} from '@/lib/permissions';
+import { cn } from '@/lib/utils';
+import { commentPath } from '@/lib/votes';
+import type { Comment, UserProfile, VoteValue } from '@/types';
+
+// Everything a comment needs besides its own node.
+export type ThreadContext = {
+    classId: string;
+    postId: string;
+    userId: string | undefined;
+    access: ClassAccess;
+    classOpen: boolean;
+    authors: Map<string, UserProfile>;
+    myVotes: Map<string, VoteValue>;
+    // From ?comment= on the post URL (Activity / deep links).
+    focusCommentId?: string | null;
+    onError: (message: string) => void;
+};
+
+function CommentItem({
+    node,
+    context,
+}: {
+    node: CommentNode;
+    context: ThreadContext;
+}) {
+    const itemRef = useRef<HTMLLIElement>(null);
+    const focused = context.focusCommentId === node.id;
+    const [collapsed, setCollapsed] = useState(false);
+    const [replying, setReplying] = useState(false);
+    const [editing, setEditing] = useState(false);
+    const [confirming, setConfirming] = useState(false);
+    const [restoring, setRestoring] = useState(false);
+    const { comment } = node;
+
+    useEffect(() => {
+        if (!focused) {
+            return;
+        }
+
+        // Wait a tick so the thread has laid out under the post body.
+        const timer = window.setTimeout(() => {
+            itemRef.current?.scrollIntoView({
+                behavior: 'smooth',
+                block: 'center',
+            });
+        }, 100);
+
+        return () => window.clearTimeout(timer);
+    }, [focused]);
+
+    async function handleRestore(tombstone: Comment) {
+        setRestoring(true);
+        context.onError('');
+
+        try {
+            await restoreComment(tombstone);
+            toast.success('Comment restored.');
+        } catch (err) {
+            context.onError(getErrorMessage(err));
+        } finally {
+            setRestoring(false);
+        }
+    }
+    const hiddenCount = countComments(node.children) + (comment ? 1 : 0);
+    const votePath = commentPath(context.classId, context.postId, node.id);
+
+    return (
+        <li
+            ref={itemRef}
+            id={`comment-${node.id}`}
+            className={cn(
+                'grid gap-1 rounded-md',
+                focused &&
+                    'bg-amber-50 ring-2 ring-amber-400 dark:bg-amber-950/40',
+            )}
+        >
+            <div className="flex items-start gap-1">
+                <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-6 shrink-0 text-muted-foreground"
+                    aria-expanded={!collapsed}
+                    aria-label={collapsed ? 'Expand thread' : 'Collapse thread'}
+                    onClick={() => setCollapsed(!collapsed)}
+                >
+                    {collapsed ? <Plus aria-hidden /> : <Minus aria-hidden />}
+                </Button>
+                <div className="grid min-w-0 flex-1 gap-1 p-1 pt-0.5">
+                    {comment ? (
+                        <CommentMeta
+                            comment={comment}
+                            author={context.authors.get(comment.userId)}
+                        />
+                    ) : (
+                        <div className="flex items-center gap-2">
+                            <p className="text-xs text-muted-foreground italic">
+                                [deleted]
+                            </p>
+                            {node.tombstone &&
+                                canRestoreComments(context.access) && (
+                                    <RestoreButton
+                                        size="icon-xs"
+                                        label="Restore comment"
+                                        disabled={restoring}
+                                        onClick={() =>
+                                            node.tombstone &&
+                                            handleRestore(node.tombstone)
+                                        }
+                                    />
+                                )}
+                        </div>
+                    )}
+
+                    {collapsed && (
+                        <button
+                            type="button"
+                            className="justify-self-start text-xs text-muted-foreground hover:underline"
+                            onClick={() => setCollapsed(false)}
+                        >
+                            {hiddenCount}{' '}
+                            {hiddenCount === 1 ? 'comment' : 'comments'} hidden
+                        </button>
+                    )}
+
+                    {!collapsed && comment && editing && (
+                        <CommentForm
+                            label="Edit your comment"
+                            initialBody={comment.body}
+                            submitLabel="Save"
+                            autoFocus
+                            onCancel={() => setEditing(false)}
+                            onSubmit={async (body) => {
+                                await updateComment(comment, body);
+                                setEditing(false);
+                            }}
+                        />
+                    )}
+
+                    {!collapsed && comment && !editing && (
+                        <>
+                            <p className="text-sm break-words whitespace-pre-wrap">
+                                {comment.body}
+                            </p>
+                            <div className="-ml-1.5 flex flex-wrap items-center gap-2">
+                                <VoteButtons
+                                    targetPath={votePath}
+                                    classId={context.classId}
+                                    score={comment.score}
+                                    myVote={context.myVotes.get(votePath)}
+                                    canVote={canVoteIn(
+                                        context.access,
+                                        context.classOpen,
+                                    )}
+                                    onError={context.onError}
+                                />
+                                <CommentActions
+                                    {...commentAbilities(
+                                        comment,
+                                        context.userId,
+                                        context.access,
+                                        context.classOpen,
+                                        MAX_COMMENT_DEPTH,
+                                    )}
+                                    onReply={() => setReplying(true)}
+                                    onEdit={() => setEditing(true)}
+                                    onDelete={() => setConfirming(true)}
+                                />
+                            </div>
+                        </>
+                    )}
+
+                    {!collapsed && comment && replying && (
+                        <CommentForm
+                            label="Write a reply"
+                            submitLabel="Reply"
+                            autoFocus
+                            onCancel={() => setReplying(false)}
+                            onSubmit={async (body) => {
+                                await createComment(
+                                    context.classId,
+                                    context.postId,
+                                    context.userId ?? '',
+                                    comment,
+                                    body,
+                                );
+                                setReplying(false);
+                            }}
+                        />
+                    )}
+                </div>
+            </div>
+
+            {!collapsed && node.children.length > 0 && (
+                <CommentList
+                    nodes={node.children}
+                    context={context}
+                    className="ml-3 border-l pl-2 sm:pl-3"
+                />
+            )}
+
+            {comment && confirming && (
+                <ConfirmDialog
+                    title="Delete this comment?"
+                    description="Everyone sees [deleted] in its place, and replies stay. Moderators can still restore it."
+                    confirmLabel="Delete comment"
+                    successMessage="Comment deleted."
+                    destructive
+                    onConfirm={() => softDeleteComment(comment)}
+                    onClose={() => setConfirming(false)}
+                />
+            )}
+        </li>
+    );
+}
+
+// One level of the thread; CommentItem renders the next level with it.
+export function CommentList({
+    nodes,
+    context,
+    className,
+}: {
+    nodes: CommentNode[];
+    context: ThreadContext;
+    className?: string;
+}) {
+    return (
+        <ul className={cn('grid gap-3', className)}>
+            {nodes.map((node) => (
+                <CommentItem key={node.id} node={node} context={context} />
+            ))}
+        </ul>
+    );
+}

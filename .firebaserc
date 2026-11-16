@@ -1,0 +1,6 @@
+{
+    "projects": {
+        "default": "mcx-respiratory",
+        "test": "mcx-respiratory-test"
+    }
+}

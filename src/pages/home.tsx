@@ -1,5 +1,8 @@
-import { CheckCircle2 } from 'lucide-react';
+import { Navigate } from 'react-router';
 
+import { AdminLink } from '@/components/auth/admin-link';
+import { FormMessage } from '@/components/common/form-message';
+import { PageLoader } from '@/components/common/page-loader';
 import {
     Card,
     CardContent,
@@ -7,40 +10,41 @@ import {
     CardHeader,
     CardTitle,
 } from '@/components/ui/card';
-import { ALLOWED_EMAIL_DOMAINS } from '@/lib/config';
-import { app } from '@/lib/firebase';
+import { useMyClasses } from '@/hooks/use-my-classes';
+import { getErrorMessage } from '@/lib/errors';
+import { pickStartClass } from '@/lib/last-class';
 
+// `/` opens the class you last switched to (or your newest one).
 export default function Home() {
+    const { classes, loading, error } = useMyClasses();
+
+    if (loading) {
+        return <PageLoader />;
+    }
+
+    if (error) {
+        return <FormMessage message={getErrorMessage(error)} />;
+    }
+
+    const start = pickStartClass(classes);
+
+    if (start) {
+        return <Navigate to={`/classes/${start.id}`} replace />;
+    }
+
+    // Only super admins get here without a class (everyone else is pending).
     return (
-        <main className="flex min-h-svh items-center justify-center p-4 sm:p-6">
-            <Card className="w-full max-w-md">
-                <CardHeader>
-                    <CardTitle className="text-xl">
-                        MXC Respiratory Therapy
-                    </CardTitle>
-                    <CardDescription>
-                        Class announcements, coming soon.
-                    </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-3 text-sm">
-                    <p className="flex items-center gap-2">
-                        <CheckCircle2 className="size-4 shrink-0 text-green-600" />
-                        <span>
-                            Connected to Firebase project{' '}
-                            <code className="rounded bg-muted px-1 py-0.5">
-                                {app.options.projectId}
-                            </code>
-                        </span>
-                    </p>
-                    <p className="text-muted-foreground">
-                        Sign-up will be open to{' '}
-                        {ALLOWED_EMAIL_DOMAINS.map(
-                            (domain) => `@${domain}`,
-                        ).join(' and ')}{' '}
-                        email addresses.
-                    </p>
-                </CardContent>
-            </Card>
-        </main>
+        <Card className="mx-auto max-w-md">
+            <CardHeader>
+                <CardTitle>You're not in a class yet</CardTitle>
+                <CardDescription>
+                    Open a class in the admin panel and use “Add existing user”
+                    to add yourself, then come back to the board.
+                </CardDescription>
+            </CardHeader>
+            <CardContent>
+                <AdminLink />
+            </CardContent>
+        </Card>
     );
 }

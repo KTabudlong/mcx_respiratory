@@ -35,8 +35,11 @@
 - **Frontend only**, hosted free on **GitHub Pages**. Backend = **Firebase Spark (free) plan**: Auth (email/password + email verification) + Firestore.
 - **Must stay free:** no Blaze plan, no Cloud Functions, no Firebase Storage. No credit card on the Firebase project.
 - **Sign-up restricted** to `@student.ccc.edu` (students) and `@ccc.edu` (instructors), case-insensitive, enforced in UI **and** `firestore.rules`.
-- **Roles:** custom roles (admin-defined), a user can hold many. Seed Admin / Moderator / Student. Users store a denormalized `permissions` array so rules can check it.
-- **Content:** posts (one author each) + Reddit-style threaded comments. No images in v1 (image links / Cloudinary later). No email blast in v1 (`mailto:` BCC / EmailJS later).
+- **Single-page app** with two looks: **Reddit-style student board** (`/`) and **CRM-style admin panel** (`/admin/*`, lazy-loaded).
+- **Classes are the anchor:** all class data lives under `classes/{classId}` (members pivot, roles, join requests, posts, comments). Users can be in many classes; new users pick a class at sign-up and stay **pending** until someone with `students.manage` approves.
+- **Roles:** super admin (`admins/{uid}`) → class → each class's **own ranked roles** (`classes/{c}/roles`, one role per member). "Officers" are just roles with admin permissions. You only manage roles/people ranked below you and only grant permissions you hold.
+- **Content:** posts (`classes/{c}/posts`, rich HTML + ≤3 photos as Firestore bytes, embedded `links`) + threaded comments + votes (`…/votes/{uid}`, score on the post/comment). Soft deletes on users, posts, comments. Roster email (`mailto:` BCC) + text (`sms:` links) behind `students.message`.
+- **Data model** is fixed in the plan § Data model (decided 2026-10-08) — read it before touching Firestore code.
 - **Security model:** `firestore.rules` is the backend contract (like Laravel policies + Form Requests). Never rely on UI checks alone.
 
 ### Stack (pinned in plan)
@@ -72,24 +75,34 @@
 
 ## Continuity (rolling — agent updates on end session)
 
-**Last updated:** 2026-10-07
+**Last updated:** 2026-10-29
 
 ### Last session
 
-**2026-10-07 (session 2) — Firebase setup + Phase 0 complete; hello-world live**
+**2026-10-29 (session 9) — section 10 steps 6a / 6b pass; approve bug fixed; request time limits**
 
-- **Firebase** project `mcx-respiratory` on Spark ($0): Email/Password auth on, `ktabudlong.github.io` in authorized domains, public-facing name set, Firestore created in **production mode** (everything locked until Phase 2 rules). Google Analytics got enabled on the project — harmless, not used in the app.
-- **GitHub:** a stray `mcxrt.com` custom domain was removed (user doesn't own it; `CNAME` deleted). Pages source = **GitHub Actions**. Default branch switched to **`main`**; work on `dev`, user merges `dev` → `main` to deploy.
-- **Phase 0 scaffold** (hand-written, not `npm create vite`): Vite 8.3, React 19.3, TS 6.0.3, Tailwind 4.3, shadcn (`button`, `card`), react-router 8.4 hash router, Vitest 5, ESLint 9 + Prettier copied from `ih_planner`. `src/lib/firebase.ts` (throws a clear error if config is missing), `src/lib/config.ts` (`ALLOWED_EMAIL_DOMAINS` + `isAllowedEmail`, 4 tests), `pages/home.tsx` + `pages/not-found.tsx`. `.cursor/rules/` (GENERAL, imports, responsive) + Tailwind skill.
-- **Version decisions:** firebase stays **12.19** (13.0 just released); ESLint stays **9** (react/import plugins don't support 10). `npm audit` flags `@grpc/grpc-js` via Firebase — Node-only, not in the browser bundle; ignore (the "fix" downgrades to firebase 9).
-- **Config decision:** GitHub repo/environment variables didn't reach the build (they'd been put under the `github-pages` environment and one was missing). Switched to a committed **`.env.production`** (public identifiers) and removed the `vars.*` lines from the workflow. User should delete the leftover environment variables under Settings → Environments → `github-pages`.
-- **Live:** https://ktabudlong.github.io/mcx_respiratory/ shows the hello-world card connected to `mcx-respiratory`. CI runs lint/format/types/tests before building.
+- **Tested (test project):** 6a (Treasurer without "Email and text selected students" → no checkboxes) and 6b (with it: select, Email (BCC), Copy addresses, Clear, header checkbox) pass.
+- **Built (checks + build green, 116 tests):**
+  - **Edit buttons:** shared icon-only blue pencil `EditButton` (`components/common/action-buttons.tsx`, optional `to` for links): comment edit, Roles, All classes, Moderation. The post "…" menu item left as is (menu item, like Delete there).
+  - **Roster selection bar** always shown to `students.message` roles; Email / Copy / Text / Clear disabled with a "Select at least 1 student…" hint (text + tooltip) until someone is ticked.
+  - **Bug: approving a student with a phone or SMS opt-in was permission-denied.** Cause: Firestore rules allow 10 document reads per write; the phone / consent check (join request read) pushed the member create to 11. Fix in `firestore.rules`: `isActive()` is one `get`, member create drops `existsAfter(role)` (getAfter denies if missing), "added" notification checks `getAfter(member).data.createdAt == request.time` instead of exists + existsAfter. **Deployed to the test project only.** Approve confirmed working.
+  - **Request time limit (30 s):** `save()` / `load()` in `src/lib/save.ts` wrap every write and one-off read (posts with new photos: 60 s); `useLoadTimeout` in all live data hooks. Message: "There's a problem reaching the server… try again later" (saves also say reload first so a queued write can't duplicate). Data that arrives later still shows.
+  - **Errors no longer vanish:** Firestore removes a row on screen before the server answers, so errors moved out of disappearing rows — join requests (error on the "Waiting to join" card), class requests (dialogs outside the empty state), post delete (also reported to the page).
+- **Found while testing:** pres's browser had an extension blocking Firestore (`ERR_BLOCKED_BY_CLIENT`); fixed by turning blockers off. That's what prompted the time limits.
+
+**2026-10-26 (session 8)** — section 10 steps 1–5 pass. Built: why-pending reasons (invites rule, test only), icon-only red Delete / green Restore, Moderation search incl. comments + sortable headers + per-role row actions, admin-panel post edit page, restore comments on the board.
+
+**2026-10-22 (session 7)** — dashboard cards open pre-filtered pages (filters / tabs in the URL), Classes tabs Active / Archived / Requests + join-requests column, Active users card matches the filter.
+
+**2026-10-21 (session 6)** — test project `mcx-respiratory-test` + Mailtrap (super admin `superadmin@student.ccc.edu`; test accounts: Class A pres / treas / mod / stu1–3 / co-officers, Class B requester + prof, newbie pending). Built: optional class at sign-up, toasts, admin account menu, post edit history, comment tombstones, comment sort. **Those rules are on the test project only** (ROADMAP § Blocked).
 
 ### Resume here
 
-1. (User, optional) Delete the 5 unused environment variables under GitHub **Settings → Environments → github-pages** (keep the environment itself).
-2. **Phase 1 — Auth:** `AuthProvider` (`src/context/auth-provider.tsx`), sign up / log in / log out / verify email / password reset pages, school-domain check via `isAllowedEmail`, `auth-layout.tsx`, protected routes. Creating the `users/{uid}` profile doc needs Firestore rules — either write a minimal `users` rule early or defer profile creation to Phase 2 (decide at start).
-3. Bundle is ~815 kB (Firestore SDK); fine for now — consider route-level code splitting later.
+1. **User (test project, `npm run dev`), one step at a time:** quick re-check of 2026-10-29 changes (blue pencils; selection bar disabled + hint with nobody ticked; with a blocker on, a page shows the "problem reaching the server" message after ~30 s), then section 10 **step 6c — Text selected** (tick stu1b — now in Class A with phone + SMS opt-in — plus someone without: only stu1b listed, the other under "Not included"; Copy message; Copy numbers; optional Android "Open in Messages" via `npm run dev -- --host`), then **step 7 — super admin user page** (profile, phone, classes, recent posts, "Deleted" badges, pending reasons), then **section 11 — archive** Class A (board read-only: no posting / editing / voting, scores still show; pending invites to Class A disappear). Also worth re-checking: invite a brand-new account and approve a class request (heavy batches touched by the rules trim). Full checklist: 2026-10-21 chat ([Test project and feedback fixes](be64807d-4e1e-485a-9864-7b5cb0dd332d)). Fix what breaks.
+2. **Merge day:** user commits on `dev` and merges `dev` → `main`; agent deploys rules + indexes to production in the same step (`npx -y firebase-tools@latest deploy --only firestore --project default`, needs the user's approval). Includes the 2026-10-21 rules, the 2026-10-26 invites rule and the **2026-10-29 access-limit trim (without it, approving students with a phone fails on the live site)**.
+3. Next build candidates: super admin name/phone edit + change log; email delivery decision (EmailJS vs `mailto:`).
+4. Optional: backfill `score: 0` on pre-vote posts so **Top** includes them.
+5. **Phase 6** — Java + emulator rules tests (cover invites, notifications, edit history, tombstones), mobile/accessibility pass, invite the class.
 
 ### Caveats
 
@@ -98,3 +111,11 @@
 - `ktabudlong.github.io` is already in Firebase Auth **authorized domains**; add any future custom domain there too (and change Vite `base` to `/`).
 - `npx shadcn add …` writes `import { cn } from "cn"` (TS 6 has no `baseUrl`) — fix to `@/lib/utils` after each add.
 - Laragon's `.test` URL won't work for this project; always use `npm run dev`.
+- **Two Firebase projects (2026-10-21):** `mcx-respiratory` = live (`.env.production`, `.firebaserc` default). `mcx-respiratory-test` = testing (`.env.local`, alias `test`); its Auth emails go through **Mailtrap** SMTP (set in the console, Authentication → Templates → SMTP), so fake `@student.ccc.edu` accounts work. Deploy rules/indexes to **both**: `npx -y firebase-tools@latest deploy --only firestore --project test` and `--project default`. Restart `npm run dev` after changing `.env.local`.
+- Firebase MCP has no emulator behind it yet, and it targets the `.firebaserc` **default (live)** project — every write hits **production**. Ask the user first; for the test project use the CLI with `--project test`.
+- **First** super admin is created by hand (`admins/{uid}` `{ createdAt }`); after that, promote/remove from `/admin/users/:userId` (can't remove yourself).
+- Invites create the Auth login first, then a Firestore batch; if the batch fails the login exists without a profile (the student can still finish sign-up normally).
+- **Rules access limits:** 10 `get`/`exists`/`getAfter` per write and 20 per batch; going over is a plain permission-denied (hit 2026-10-29 by approve with a phone). If approve / invite / President-class creation fails with permission-denied, check that first. To see the real error, temporarily add `setLogLevel('debug')` (from `firebase/firestore`) in `src/lib/firebase.ts` under `import.meta.env.DEV` and filter the console by `code=` — remove it afterwards.
+- `ERR_BLOCKED_BY_CLIENT` on `firestore.googleapis.com` = a browser extension (ad blocker, Brave Shields, antivirus) blocking Firestore; writes then wait silently (now cut off after 30 s with a message).
+- Auto-review asks the user to approve every rules deploy, even to the test project.
+- Firebase MCP read-back quirk: `firestore_update_document` / `firestore_get_document` error on fields that are `null` (e.g. `deletedAt`) even when the write succeeded. Pass a `mask` that skips null fields when reading.

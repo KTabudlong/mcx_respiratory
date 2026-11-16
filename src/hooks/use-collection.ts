@@ -1,0 +1,44 @@
+import { collection, onSnapshot } from 'firebase/firestore';
+import { useEffect, useState } from 'react';
+
+import { useLoadTimeout } from '@/hooks/use-load-timeout';
+import { db } from '@/lib/firebase';
+import { docData } from '@/lib/firestore-data';
+
+type Snapshot<T> = { path: string; data: T[]; error: Error | null };
+
+// Live listener for a whole collection — fine at class size (a few hundred
+// documents). Pass `null` to skip (e.g. missing permission).
+export function useCollection<T>(path: string | null) {
+    const [snapshot, setSnapshot] = useState<Snapshot<T> | null>(null);
+
+    useEffect(() => {
+        if (!path) {
+            return;
+        }
+
+        return onSnapshot(
+            collection(db, path),
+            (snap) =>
+                setSnapshot({
+                    path,
+                    data: snap.docs.map((item) => docData<T>(item)),
+                    error: null,
+                }),
+            (error) => setSnapshot({ path, data: [], error }),
+        );
+    }, [path]);
+
+    const current = path && snapshot?.path === path ? snapshot : null;
+    const timeout = useLoadTimeout(path, current === null);
+
+    if (!path) {
+        return { data: [] as T[], loading: false, error: null };
+    }
+
+    return {
+        data: current?.data ?? [],
+        loading: current === null && timeout === null,
+        error: current?.error ?? timeout,
+    };
+}
